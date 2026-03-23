@@ -396,3 +396,28 @@ export const initSupabase = (config: SupabaseConfig) => {
   clientInstance = createClient(config.url, config.key);
   return clientInstance;
 };
+
+// ── Playbook Sync (stored as JSONB in profiles.playbooks) ─────────────────────
+export const syncPlaybooksToSupabase = async (playbooks: any[]): Promise<boolean> => {
+  const client = getSupabaseClient();
+  if (!client) return false;
+  try {
+    const { data: { user } } = await client.auth.getUser();
+    if (!user) return false;
+    const { error } = await client.from('profiles').upsert({ id: user.id, playbooks }, { onConflict: 'id' });
+    if (error) { console.error('Playbook sync failed:', error.message); return false; }
+    return true;
+  } catch (e) { console.error('Playbook sync error:', e); return false; }
+};
+
+export const loadPlaybooksFromSupabase = async (): Promise<any[] | null> => {
+  const client = getSupabaseClient();
+  if (!client) return null;
+  try {
+    const { data: { user } } = await client.auth.getUser();
+    if (!user) return null;
+    const { data, error } = await client.from('profiles').select('playbooks').eq('id', user.id).single();
+    if (error || !data?.playbooks) return null;
+    return data.playbooks as any[];
+  } catch (e) { return null; }
+};

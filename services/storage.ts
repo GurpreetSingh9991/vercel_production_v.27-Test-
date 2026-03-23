@@ -65,10 +65,14 @@ export const exportToCSV = (trades: Trade[]) => {
 
 const COLUMN_ALIASES: Record<string, string> = {
   'date': 'date', 'time': 'date', 'trade date': 'date', 'close date': 'date', 'open date': 'date', 'execution time': 'date', 'open time': 'date', 'close time': 'date',
+  // Tradovate: use soldTimestamp as the trade date (when position closed)
+  'soldtimestamp': 'date', 'boughttimestamp': 'entryTimestamp', 'closedtimestamp': 'date',
   'symbol': 'symbol', 'instrument': 'symbol', 'ticker': 'symbol', 'market': 'symbol', 'contract': 'symbol', 'asset': 'symbol', 'item': 'symbol',
   'side': 'side', 'direction': 'side', 'type': 'side', 'position': 'side', 'action': 'side', 'buy/sell': 'side', 'trans. type': 'side',
   'qty': 'qty', 'quantity': 'qty', 'shares': 'qty', 'size': 'qty', 'contracts': 'qty', 'volume': 'qty', 'units': 'qty',
   'entry price': 'entryPrice', 'entry': 'entryPrice', 'open price': 'entryPrice', 'avg entry': 'entryPrice', 'buy price': 'entryPrice', 'avg. entry price': 'entryPrice', 'trade price': 'entryPrice', 'price': 'entryPrice',
+  // Tradovate: buyprice = entry, sellprice = exit
+  'buyprice': 'entryPrice', 'sellprice': 'exitPrice',
   'exit price': 'exitPrice', 'exit': 'exitPrice', 'close price': 'exitPrice', 'avg exit': 'exitPrice', 'sell price': 'exitPrice', 'avg. exit price': 'exitPrice', 'closeprice': 'exitPrice',
   'net p&l': 'pnl', 'pnl': 'pnl', 'p&l': 'pnl', 'profit/loss': 'pnl', 'net profit': 'pnl', 'realized p&l': 'pnl', 'net p/l': 'pnl', 'amount': 'pnl', 'gain/loss': 'pnl', 'profit': 'pnl', 'realized p/l': 'pnl',
   'setup type': 'setupType', 'setup': 'setupType', 'strategy': 'setupType',
@@ -78,6 +82,11 @@ const COLUMN_ALIASES: Record<string, string> = {
   'rr': 'rr', 'r:r': 'rr', 'risk/reward': 'rr', 'r multiple': 'rr',
   'fees': 'total_fees', 'commission': 'total_fees', 'fee': 'total_fees', 'commissions': 'total_fees', 'swap': 'total_fees', 'taxes': 'total_fees',
   'asset type': 'assetType', 'asset class': 'assetType', 'security type': 'assetType',
+  // Tradovate metadata columns (parsed but not mapped to trade fields — just ignored gracefully)
+  '_priceformat': '_ignore', '_priceformattype': '_ignore', '_ticksize': '_ignore',
+  'buyfileid': '_ignore', 'sellfileid': '_ignore',
+  // Tradovate duration field
+  'duration': 'duration',
 };
 
 const normalizeSide = (val: string): 'LONG' | 'SHORT' => {
@@ -128,14 +137,69 @@ export const parseCSV = (csvText: string, accountId: string = ''): Trade[] => {
 
   const parseNum = (val: string): number => {
     if (!val) return 0;
-    // Handle parentheses for negative numbers: (100.00) -> -100.00
     let cleaned = val.trim();
-    if (cleaned.startsWith('(') && cleaned.endsWith(')')) {
+    // Tradovate format: $(16.50) = negative, $16.50 = positive
+    if (cleaned.startsWith('$(') && cleaned.endsWith(')')) {
+      cleaned = '-' + cleaned.slice(2, -1);
+    }
+    // Standard accounting parens: (100.00) -> -100.00
+    else if (cleaned.startsWith('(') && cleaned.endsWith(')')) {
       cleaned = '-' + cleaned.slice(1, -1);
     }
     cleaned = cleaned.replace(/[$,\s]/g, '');
     const n = parseFloat(cleaned);
     return isNaN(n) ? 0 : n;
+  };
+
+  // Normalize any date string to YYYY-MM-DD
+  // Handles: MM/DD/YYYY HH:MM:SS (Tradovate), YYYY-MM-DD, DD.MM.YYYY, YYYY.MM.DD, etc.
+  const normalizeDate = (rawDate: string): string => {
+    if (!rawDate) return new Date().toISOString().split('T')[0];
+    try {
+      // Strip time component first for parsing
+      const dateOnly = rawDate.split(' ')[0];
+      if (dateOnly.includes('/')) {
+        const parts = dateOnly.split('/');
+        if (parts.length === 3) {
+          // MM/DD/YYYY (Tradovate, US brokers)
+          if (parts[2].length === 4) {
+            return `${parts[2]}-${parts[0].padStart(2,'0')}-${parts[1].padStart(2,'0')}`;
+          }
+          // DD/MM/YYYY
+          if (parts[0].length <= 2 && parseInt(parts[0]) > 12) {
+            return `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
+          }
+          // YYYY/MM/DD
+          if (parts[0].length === 4) {
+            return `${parts[0]}-${parts[1].padStart(2,'0')}-${parts[2].padStart(2,'0')}`;
+          }
+          // Default assume MM/DD/YYYY
+          return `${parts[2]}-${parts[0].padStart(2,'0')}-${parts[1].padStart(2,'0')}`;
+        }
+      }
+      if (dateOnly.includes('.')) {
+        const parts = dateOnly.split('.');
+        if (parts.length === 3) {
+          if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2,'0')}-${parts[2].padStart(2,'0')}`;
+          return `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
+        }
+      }
+      // Already YYYY-MM-DD or parseable by Date
+      const d = new Date(rawDate);
+      if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+    } catch { /* fall through */ }
+    return rawDate;
+  };
+
+  // Extract HH:MM time from a full timestamp string like "03/02/2026 09:23:58"
+  const extractTime = (timestamp: string): string => {
+    if (!timestamp) return '09:30';
+    const parts = timestamp.trim().split(' ');
+    if (parts.length >= 2) {
+      const timePart = parts[1].split(':');
+      if (timePart.length >= 2) return `${timePart[0]}:${timePart[1]}`;
+    }
+    return '09:30';
   };
 
   const trades: Trade[] = [];
@@ -158,36 +222,44 @@ export const parseCSV = (csvText: string, accountId: string = ''): Trade[] => {
     const pnlRaw = parseNum(getCell(row, 'pnl', '0'));
     if (pnlRaw === 0 && symbol === '') continue;
 
+    // ── Price / quantity fields ─────────────────────────────────────────
     const entryPrice = parseNum(getCell(row, 'entryPrice', '0'));
     const exitPrice  = parseNum(getCell(row, 'exitPrice',  '0'));
     const qty        = parseNum(getCell(row, 'qty', '1')) || 1;
     const rr         = parseNum(getCell(row, 'rr',  '0'));
-    const fees       = parseNum(getCell(row, 'total_fees', '0')) + parseNum(getCell(row, 'swap', '0')) + parseNum(getCell(row, 'taxes', '0'));
-    const assetType  = normalizeAssetType(getCell(row, 'assetType', 'STOCKS'));
-    const result: Result = pnlRaw > 0 ? 'WIN' : pnlRaw < 0 ? 'LOSS' : 'BE';
+    const fees       = parseNum(getCell(row, 'total_fees', '0'));
 
-    const rawDate = getCell(row, 'date', new Date().toISOString().split('T')[0]);
-    // Normalize date to YYYY-MM-DD
-    let normalizedDate = rawDate;
-    try {
-      // Handle MT5/MT4 formats like 2024.05.20 14:30:00 or 20.05.2024
-      const dateOnly = rawDate.split(' ')[0]; 
-      if (dateOnly.includes('.') || dateOnly.includes('/')) {
-        const parts = dateOnly.split(/[./-]/);
-        if (parts.length === 3) {
-          if (parts[0].length === 4) {
-             normalizedDate = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-          } else if (parts[2].length === 4) {
-             normalizedDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-          }
-        }
-      }
-      
-      const d = new Date(normalizedDate);
-      if (!isNaN(d.getTime())) {
-        normalizedDate = d.toISOString().split('T')[0];
-      }
-    } catch { /* keep raw */ }
+    // ── Asset type — auto-detect Tradovate futures symbols (e.g. MNQH6, ESZ5) ──
+    const rawAssetType = getCell(row, 'assetType', '');
+    let assetType = normalizeAssetType(rawAssetType);
+    if (!rawAssetType) {
+      if (/^[A-Z]{1,6}[FGHJKMNQUVXZ]\d{1,2}$/.test(symbol)) assetType = 'FUTURES';
+    }
+
+    // ── Side detection ────────────────────────────────────────────────
+    // Tradovate has no side column. Infer: if buyPrice < sellPrice → LONG (bought low, sold high)
+    const sideRaw = getCell(row, 'side', '');
+    let side: 'LONG' | 'SHORT';
+    if (sideRaw) {
+      side = normalizeSide(sideRaw);
+    } else if (entryPrice > 0 && exitPrice > 0) {
+      side = entryPrice <= exitPrice ? 'LONG' : 'SHORT';
+    } else {
+      side = 'LONG';
+    }
+
+    // ── Date / time extraction ─────────────────────────────────────────
+    // Tradovate: soldTimestamp (close) → date field; boughtTimestamp (open) → entryTimestamp
+    const closedRaw = getCell(row, 'date', '');
+    const openedRaw = getCell(row, 'entryTimestamp', '');
+    const normalizedDate = normalizeDate(closedRaw || openedRaw);
+    const entryTime = extractTime(openedRaw || closedRaw);
+    const exitTime  = extractTime(closedRaw);
+
+    // Tradovate "duration" column (e.g. "5min 4sec")
+    const durationRaw = getCell(row, 'duration', '0m');
+
+    const result: Result = pnlRaw > 0 ? 'WIN' : pnlRaw < 0 ? 'LOSS' : 'BE';
 
     trades.push({
       id: crypto.randomUUID(),
@@ -195,7 +267,7 @@ export const parseCSV = (csvText: string, accountId: string = ''): Trade[] => {
       timestamp: new Date().toISOString(),
       date: normalizedDate,
       symbol,
-      side: normalizeSide(getCell(row, 'side', 'LONG')),
+      side,
       assetType,
       qty,
       multiplier: 1,
@@ -203,9 +275,9 @@ export const parseCSV = (csvText: string, accountId: string = ''): Trade[] => {
       exitPrice,
       stopLossPrice: 0,
       targetPrice: 0,
-      entryTime: '09:30',
-      exitTime: '16:00',
-      duration: '0m',
+      entryTime,
+      exitTime,
+      duration: durationRaw,
       pnl: pnlRaw,
       rr,
       result,

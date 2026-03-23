@@ -18,6 +18,17 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ onClose, plan = 'free
   const [openLegal, setOpenLegal] = useState<LegalDoc | null>(null);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+
+  // Password change
+  const [currentPassword, setCurrentPassword]     = useState('');
+  const [newPassword, setNewPassword]             = useState('');
+  const [confirmPassword, setConfirmPassword]     = useState('');
+  const [passwordLoading, setPasswordLoading]     = useState(false);
+  const [passwordSuccess, setPasswordSuccess]     = useState(false);
+  const [passwordError, setPasswordError]         = useState<string | null>(null);
+  const [showPasswordSection, setShowPasswordSection] = useState(false);
+  // Whether the user signed up with Google (no password to change in that case)
+  const [isGoogleUser, setIsGoogleUser]           = useState(false);
   
   // Developer-only gate: only show dev tools to the account owner.
   // Set VITE_OWNER_EMAIL=your@email.com in Netlify env vars / .env.local
@@ -49,6 +60,17 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ onClose, plan = 'free
           avatarUrl: session.user.user_metadata?.avatar_url || ''
         });
         
+        // Detect Google OAuth users — they have no password to change
+        const providers: string[] = session.user.app_metadata?.providers || [];
+        const provider: string = session.user.app_metadata?.provider || '';
+        const identities = session.user.identities || [];
+        const hasGoogleIdentity = identities.some((id: any) => id.provider === 'google');
+        setIsGoogleUser(
+          hasGoogleIdentity ||
+          provider === 'google' ||
+          providers.includes('google')
+        );
+
         const count = await getTradeCountThisMonth(session.user.id);
         setUsage(count);
       }
@@ -89,14 +111,28 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ onClose, plan = 'free
     }
   };
 
-  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData(prev => ({ ...prev, avatarUrl: reader.result as string }));
-      };
-      reader.readAsDataURL(file);
+  const handlePasswordChange = async () => {
+    if (newPassword.length < 8) { setPasswordError('Password must be at least 8 characters.'); return; }
+    if (newPassword !== confirmPassword) { setPasswordError('Passwords do not match.'); return; }
+    setPasswordLoading(true);
+    setPasswordError(null);
+    setPasswordSuccess(false);
+    const client = getSupabaseClient();
+    if (!client) { setPasswordError('Client unavailable.'); setPasswordLoading(false); return; }
+    try {
+      // For email/password users: Supabase requires re-authentication if it's a sensitive operation.
+      // We call updateUser directly — Supabase handles session validation server-side.
+      const { error: updateErr } = await client.auth.updateUser({ password: newPassword });
+      if (updateErr) throw updateErr;
+      setPasswordSuccess(true);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setTimeout(() => { setPasswordSuccess(false); setShowPasswordSection(false); }, 3000);
+    } catch (err: any) {
+      setPasswordError(err.message || 'Failed to update password.');
+    } finally {
+      setPasswordLoading(false);
     }
   };
 
@@ -301,18 +337,13 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ onClose, plan = 'free
             </div>
 
             <div className="flex flex-col items-center mb-6">
-              <div className="relative group">
-                <div className="w-24 h-24 rounded-[2rem] bg-black/5 border border-black/10 overflow-hidden shadow-inner">
-                  <img 
-                    src={formData.avatarUrl || `https://api.dicebear.com/7.x/notionists/svg?seed=${formData.fullName}`} 
-                    className="w-full h-full object-cover" 
-                    alt="Current Avatar" 
-                  />
-                </div>
-                <label className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-[2rem] cursor-pointer text-white text-[8px] font-black uppercase tracking-widest">
-                  Change
-                  <input type="file" className="hidden" accept="image/*" onChange={handleAvatarUpload} />
-                </label>
+              {/* Avatar display only — no upload (base64 would exceed Supabase metadata limits) */}
+              <div className="w-24 h-24 rounded-[2rem] bg-black/5 border border-black/10 overflow-hidden shadow-inner">
+                <img 
+                  src={formData.avatarUrl || `https://api.dicebear.com/7.x/notionists/svg?seed=${formData.fullName}`} 
+                  className="w-full h-full object-cover" 
+                  alt="Current Avatar" 
+                />
               </div>
             </div>
 
@@ -363,6 +394,88 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ onClose, plan = 'free
               <p className="text-emerald-600 text-[10px] font-black uppercase tracking-widest">Update Successful</p>
             </div>
           )}
+
+          {/* ── Password Change Section ─────────────────────────────────── */}
+          <section className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-1 h-4 bg-black rounded-full" />
+                <h3 className="text-[10px] font-black text-black uppercase tracking-[0.2em]">Password</h3>
+              </div>
+              {!isGoogleUser && (
+                <button
+                  type="button"
+                  onClick={() => { setShowPasswordSection(s => !s); setPasswordError(null); setPasswordSuccess(false); }}
+                  className="text-[9px] font-black uppercase tracking-widest text-black/30 hover:text-black transition-colors"
+                >
+                  {showPasswordSection ? 'Cancel' : 'Change Password'}
+                </button>
+              )}
+            </div>
+
+            {isGoogleUser ? (
+              <div className="p-5 rounded-[1.5rem] bg-black/[0.03] border border-black/5 flex items-center gap-4">
+                <div className="w-8 h-8 bg-black/5 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <svg className="w-4 h-4 text-black/30" viewBox="0 0 24 24" fill="currentColor"><path d="M12.48 10.92v3.28h4.78c-.19 1.06-1.12 3.13-4.78 3.13-3.18 0-5.77-2.64-5.77-5.88s2.59-5.88 5.77-5.88c1.81 0 3.02.77 3.71 1.44l2.58-2.49c-1.66-1.55-3.82-2.49-6.29-2.49-5.26 0-9.52 4.26-9.52 9.52s4.26 9.52 9.52 9.52c5.5 0 9.15-3.87 9.15-9.3 0-.62-.07-1.1-.15-1.57h-9z"/></svg>
+                </div>
+                <div>
+                  <p className="text-[11px] font-black text-black">Signed in with Google</p>
+                  <p className="text-[9px] text-black/30 font-bold mt-0.5">Your password is managed by Google — change it at myaccount.google.com</p>
+                </div>
+              </div>
+            ) : !showPasswordSection ? (
+              <div className="p-5 rounded-[1.5rem] bg-black/[0.03] border border-black/5 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-black/5 rounded-xl flex items-center justify-center">
+                    <svg className="w-4 h-4 text-black/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-black text-black">Password</p>
+                    <p className="text-[9px] text-black/30 font-bold mt-0.5">Last changed: not tracked</p>
+                  </div>
+                </div>
+                <button type="button" onClick={() => setShowPasswordSection(true)}
+                  className="px-4 py-2 bg-black text-white rounded-xl text-[9px] font-black uppercase tracking-widest active:scale-95 transition-all hover:bg-black/80">
+                  Change
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3 animate-in slide-in-from-top-2 duration-300">
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                  placeholder="new password (8+ characters)"
+                  className="w-full bg-white border border-slate-200 rounded-2xl p-4 text-[13px] text-black focus:border-black outline-none transition-all font-bold shadow-sm"
+                />
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  placeholder="confirm new password"
+                  className="w-full bg-white border border-slate-200 rounded-2xl p-4 text-[13px] text-black focus:border-black outline-none transition-all font-bold shadow-sm"
+                />
+                {passwordError && (
+                  <div className="bg-rose-500/10 border border-rose-500/20 py-2.5 px-5 rounded-xl">
+                    <p className="text-rose-600 text-[9px] font-black uppercase tracking-widest">{passwordError}</p>
+                  </div>
+                )}
+                {passwordSuccess && (
+                  <div className="bg-emerald-500/10 border border-emerald-500/20 py-2.5 px-5 rounded-xl">
+                    <p className="text-emerald-600 text-[9px] font-black uppercase tracking-widest">✓ Password updated successfully</p>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={handlePasswordChange}
+                  disabled={passwordLoading || !newPassword || !confirmPassword}
+                  className="w-full py-3.5 bg-black text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-xl active:scale-95 transition-all disabled:opacity-50"
+                >
+                  {passwordLoading ? 'Updating…' : 'Update Password'}
+                </button>
+              </div>
+            )}
+          </section>
 
           {/* Legal Documents Section */}
           <section className="space-y-4">

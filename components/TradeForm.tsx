@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Trade, Account, Side, AssetType, Bias, Grade, Mistake, Execution, Psychology } from '../types';
+import { Trade, Account, Side, AssetType, Bias, Grade, Mistake, Execution, Psychology, Playbook } from '../types';
 import { ICONS, SIDES, ASSET_TYPES, SETUP_TYPES, BIASES, GRADES } from '../constants';
 import ExecutionManager from './ExecutionManager';
+import TradeImageUpload from './TradeImageUpload';
+import { PlaybookPicker } from './Playbook';
 
 const COMMON_MISTAKES = [
   'Premature Entry',
@@ -36,9 +38,10 @@ interface TradeFormProps {
   accounts: Account[];
   activeAccountId: string;
   prefillDate?: string;
+  playbooks?: Playbook[];
 }
 
-const TradeForm: React.FC<TradeFormProps> = ({ onSave, onCancel, initialData, accounts, activeAccountId, prefillDate }) => {
+const TradeForm: React.FC<TradeFormProps> = ({ onSave, onCancel, initialData, accounts, activeAccountId, prefillDate, playbooks = [] }) => {
   const [showMistakes, setShowMistakes] = useState(false);
   const [showPsychology, setShowPsychology] = useState(false);
   const [isAdvanced, setIsAdvanced] = useState(false);
@@ -76,10 +79,11 @@ const TradeForm: React.FC<TradeFormProps> = ({ onSave, onCancel, initialData, ac
     rr: 0,
     result: 'WIN',
     resultGrade: 'B' as Grade,
-    setupType: 'A',
+    setupType: '',
     weeklyBias: 'SIDEWAYS' as Bias,
     narrative: '',
     chartLink: '',
+    images: [],
     tags: [],
     mistakes: [],
     executions: [],
@@ -499,13 +503,33 @@ const TradeForm: React.FC<TradeFormProps> = ({ onSave, onCancel, initialData, ac
                 </div>
               </div>
               <div className="space-y-1.5">
-                <label className="block text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1">Setup</label>
-                <div className="flex gap-1 p-1 bg-slate-100/50 border border-slate-200 rounded-xl h-[48px]">
-                  {SETUP_TYPES.map(s => (
-                    <button key={s} type="button" onClick={() => setFormData(p => ({...p, setupType: s}))} className={`flex-1 rounded-lg text-[10px] font-black transition-all ${formData.setupType === s ? 'bg-black text-white' : 'text-slate-500 hover:text-black'}`}>{s}</button>
-                  ))}
-                </div>
+                <label className="block text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1">Strategy Name</label>
+                <input
+                  type="text"
+                  name="setupType"
+                  value={formData.setupType}
+                  onChange={handleChange}
+                  list="playbook-suggestions"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 text-[12px] font-semibold outline-none h-[48px] focus:ring-2 focus:ring-black/5 text-black placeholder:text-slate-300"
+                  placeholder="e.g. VWAP Reclaim, ORB, Pullback..."
+                />
+                {playbooks.length > 0 && (
+                  <datalist id="playbook-suggestions">
+                    {playbooks.map(pb => <option key={pb.id} value={pb.name} />)}
+                  </datalist>
+                )}
               </div>
+              {playbooks.length > 0 && (
+                <div className="space-y-1.5">
+                  <label className="block text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1">Playbook</label>
+                  <PlaybookPicker
+                    playbooks={playbooks}
+                    setupType={formData.setupType}
+                    value={(formData as any).playbookId}
+                    onChange={(id) => setFormData(p => ({...p, playbookId: id}))}
+                  />
+                </div>
+              )}
             </div>
           </div>
 
@@ -880,6 +904,15 @@ const TradeForm: React.FC<TradeFormProps> = ({ onSave, onCancel, initialData, ac
               <div className="space-y-1.5">
                 <label className="block text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1">Snapshot URL</label>
                 <input type="url" name="chartLink" value={formData.chartLink} onChange={handleChange} className="w-full bg-white border border-slate-200 rounded-xl p-3 text-[11px] font-mono outline-none h-[48px] text-black" placeholder="TradingView Link" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1">Chart Screenshots</label>
+                <TradeImageUpload
+                  tradeId={formData.id as string}
+                  existingImages={formData.images as string[] || []}
+                  onImagesChange={(urls) => setFormData(prev => ({ ...prev, images: urls }))}
+                  isNewTrade={!initialData}
+                />
               </div>
             </div>
             <div className="space-y-1.5">

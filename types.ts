@@ -90,8 +90,19 @@ export interface Trade {
   
   // Optional
   images?: string[];
+  playbookId?: string;
   mistakes?: Mistake[];
   psychology?: Psychology;
+}
+
+export interface Playbook {
+  id: string;
+  name: string;
+  description: string;
+  rules: string[];
+  tags: string[];
+  colorHex: string;
+  createdAt: string;
 }
 
 export interface SyncConfig {
@@ -100,4 +111,4 @@ export interface SyncConfig {
   autoSync: boolean;
 }
 
-export type ViewType = 'DASHBOARD' | 'TRADES_LOG' | 'CALENDAR' | 'ANALYTICS' | 'PSYCHOLOGY' | 'AI_INTELLIGENCE' | 'SETTINGS';
+export type ViewType = 'DASHBOARD' | 'TRADES_LOG' | 'CALENDAR' | 'ANALYTICS' | 'PSYCHOLOGY' | 'AI_INTELLIGENCE' | 'SETTINGS' | 'PLAYBOOK';

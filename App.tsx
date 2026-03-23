@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Trade, ViewType, PerformanceUnit, Account } from './types';
+import { Trade, ViewType, PerformanceUnit, Account, Playbook } from './types';
 import { ICONS, TRADER_QUOTES, COLORS } from './constants';
 import { loadTrades, saveTrades, exportToCSV } from './services/storage';
-import { getSupabaseTrades, syncSingleTradeToSupabase, syncTradesToSupabase, deleteSupabaseTrade, getSupabaseAccounts, syncAccountsToSupabase, getSession, signOut, getSupabaseClient, clearAuthSession } from './services/supabase';
+import { getSupabaseTrades, syncSingleTradeToSupabase, syncTradesToSupabase, deleteSupabaseTrade, getSupabaseAccounts, syncAccountsToSupabase, getSession, signOut, getSupabaseClient, clearAuthSession, syncPlaybooksToSupabase, loadPlaybooksFromSupabase } from './services/supabase';
 import { canUserAddTrade, getUserPlan, startStripeCheckout } from './services/planService';
 import Dashboard from './components/Dashboard';
 import TradeLog from './components/TradeLog';
@@ -19,6 +19,7 @@ import LoadingBar from './components/LoadingBar';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import Gamification from './components/Gamification';
 import { TermsAcceptanceGate } from './components/Legal';
+import PlaybookPage, { PlaybookIcon } from './components/Playbook';
 import { Session } from '@supabase/supabase-js';
 
 // ─── Toast System ─────────────────────────────────────────────────────────────
@@ -78,6 +79,86 @@ const BlurredUpgradeGate: React.FC<{ feature: string; onUpgrade: () => void; chi
     <button onClick={onUpgrade} className="px-10 py-4 bg-black text-white rounded-full text-[11px] font-black uppercase tracking-[0.2em] shadow-xl active:scale-95 transition-all hover:scale-105">Unlock Pro →</button>
   </div>
 );
+
+// ─── Password Recovery Screen ──────────────────────────────────────────────────
+// Shown when user arrives via a "reset password" email link.
+// Supabase fires PASSWORD_RECOVERY → SIGNED_IN in sequence, so without this
+// the app would fully load before Auth.tsx could intercept it.
+const PasswordRecoveryScreen: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
+  const [newPassword, setNewPassword]         = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading]                 = useState(false);
+  const [error, setError]                     = useState<string | null>(null);
+  const [done, setDone]                       = useState(false);
+
+  const handleUpdate = async () => {
+    if (newPassword.length < 8) { setError('Password must be at least 8 characters.'); return; }
+    if (newPassword !== confirmPassword) { setError('Passwords do not match.'); return; }
+    setLoading(true);
+    setError(null);
+    try {
+      const supabase = getSupabaseClient();
+      if (!supabase) throw new Error('Client unavailable');
+      const { error: updateErr } = await supabase.auth.updateUser({ password: newPassword });
+      if (updateErr) throw updateErr;
+      setDone(true);
+    } catch (err: any) {
+      setError(err.message || 'Failed to update password.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#D6D6D6] flex items-center justify-center p-6 selection:bg-black/10">
+      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-black/5 rounded-full blur-[100px] pointer-events-none" />
+      <div className="w-full max-w-md apple-glass rounded-[3.5rem] p-10 md:p-14 ambient-shadow relative overflow-hidden animate-in zoom-in-95 duration-700 border-white/40 text-center">
+        {done ? (
+          <div className="flex flex-col items-center gap-6">
+            <div className="w-16 h-16 bg-emerald-500/10 rounded-[1.5rem] flex items-center justify-center">
+              <svg className="w-8 h-8 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+            </div>
+            <h2 className="text-2xl font-black tracking-tighter text-black">Password Updated!</h2>
+            <p className="text-[10px] font-bold text-black/40 uppercase tracking-[0.2em]">Your new password has been saved.</p>
+            <button onClick={onComplete} className="group flex items-center bg-black rounded-full p-1 pr-2 pl-6 transition-all duration-500 shadow-2xl active:scale-95 mx-auto">
+              <span className="text-white text-[10px] font-black uppercase tracking-[0.2em] mr-4">Go to Login</span>
+              <div className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center text-white">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+              </div>
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-6">
+            <div className="w-14 h-14 bg-black rounded-2xl flex items-center justify-center shadow-xl">
+              <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+            </div>
+            <div>
+              <h2 className="text-2xl font-black tracking-tighter text-black mb-2">Set New Password</h2>
+              <p className="text-[10px] font-bold text-black/40 uppercase tracking-[0.2em]">Choose a strong password for your account</p>
+            </div>
+            <div className="w-full space-y-3">
+              <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)}
+                placeholder="new password (8+ characters)"
+                className="w-full bg-white/40 border border-white/60 rounded-2xl py-3.5 px-6 text-black placeholder:text-black/20 outline-none focus:bg-white focus:border-black/10 transition-all text-sm font-bold tracking-tight" />
+              <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}
+                placeholder="confirm password"
+                className="w-full bg-white/40 border border-white/60 rounded-2xl py-3.5 px-6 text-black placeholder:text-black/20 outline-none focus:bg-white focus:border-black/10 transition-all text-sm font-bold tracking-tight" />
+              {error && (
+                <div className="bg-rose-500/10 border border-rose-500/20 py-2.5 px-6 rounded-xl">
+                  <p className="text-rose-600 text-[9px] font-black uppercase tracking-widest">{error}</p>
+                </div>
+              )}
+              <button onClick={handleUpdate} disabled={loading}
+                className="w-full py-3.5 bg-black text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-xl active:scale-95 transition-all disabled:opacity-50">
+                {loading ? 'Updating…' : 'Update Password'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 // ─── Onboarding ───────────────────────────────────────────────────────────────
 const OnboardingScreen: React.FC<{ userName: string; userEmail: string; session: any; onComplete: (accounts: any[]) => void }> = ({ userName, onComplete }) => {
@@ -176,6 +257,7 @@ const getMobilePageTitle = (view: ViewType): string => {
     PSYCHOLOGY: 'Psychology',
     AI_INTELLIGENCE: 'AI Intel',
     SETTINGS: 'Settings',
+    PLAYBOOK: 'Playbook',
     GAMIFICATION: 'Achievements',
   };
   return map[view] ?? 'TradeFlow';
@@ -240,6 +322,10 @@ const App: React.FC = () => {
   const [activeAccountId, setActiveAccountId] = useState<string>('ALL');
   const [session, setSession] = useState<Session | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
+  // Ref so the onAuthStateChange closure always sees the latest value
+  const isPasswordRecoveryRef = React.useRef(false);
+  React.useEffect(() => { isPasswordRecoveryRef.current = isPasswordRecovery; }, [isPasswordRecovery]);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [needsTermsAcceptance, setNeedsTermsAcceptance] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -251,6 +337,9 @@ const App: React.FC = () => {
   const [swipeStartX, setSwipeStartX] = useState<number | null>(null);
   const [swipeStartY, setSwipeStartY] = useState<number | null>(null);
   const [editingTrade, setEditingTrade] = useState<Trade | null>(null);
+  const [playbooks, setPlaybooks] = useState<Playbook[]>(() => {
+    try { return JSON.parse(localStorage.getItem('tf_playbooks') || '[]'); } catch { return []; }
+  });
   const [prefillDate, setPrefillDate] = useState<string | undefined>(undefined);
   const [upgradePrompt, setUpgradePrompt] = useState<string | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -361,8 +450,16 @@ const App: React.FC = () => {
         }
       }
       client.auth.onAuthStateChange(async (event, newSession) => {
+        if (event === 'PASSWORD_RECOVERY') {
+          // Block the app from loading — show password reset UI instead
+          setIsPasswordRecovery(true);
+          setIsAuthLoading(false);
+          return;
+        }
         if (event === 'SIGNED_OUT') { setSession(null); setTrades([]); setAccounts([]); setUserPlan('free'); }
         else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          // If we're in password recovery mode, ignore SIGNED_IN until password is changed
+          if (isPasswordRecoveryRef.current) return;
           setSession(newSession);
           if (newSession) {
             await new Promise(r => setTimeout(r, 150));
@@ -390,6 +487,9 @@ const App: React.FC = () => {
           if (ra) { setAccounts(ra); localStorage.setItem('tf_accounts', JSON.stringify(ra)); if (ra.length === 0) setShowOnboarding(true); }
           else { const sa = localStorage.getItem('tf_accounts'); if (sa) setAccounts(JSON.parse(sa)); else setShowOnboarding(true); }
           if (rt) { setTrades(rt); saveTrades(rt); } else setTrades(loadTrades());
+          // Load playbooks from Supabase, fall back to localStorage
+          const cloudPlaybooks = await loadPlaybooksFromSupabase();
+          if (cloudPlaybooks) { setPlaybooks(cloudPlaybooks); localStorage.setItem('tf_playbooks', JSON.stringify(cloudPlaybooks)); }
           localStorage.setItem('tf_cached_user_id', s.user.id);
         } catch (e: any) { if (e.message === 'AUTH_ERROR') { await handleAuthCleanup(); return; } throw e; }
       } else { const sa = localStorage.getItem('tf_accounts'); if (sa) setAccounts(JSON.parse(sa)); setTrades(loadTrades()); }
@@ -465,6 +565,23 @@ const App: React.FC = () => {
   };
 
   if (isAuthLoading) return <LoadingBar message="Initializing Journal..." />;
+  // ── PASSWORD RECOVERY INTERCEPT ────────────────────────────────────────────
+  // When user clicks the reset-password email link, Supabase fires PASSWORD_RECOVERY
+  // then immediately fires SIGNED_IN (creating a real session). We block the full app
+  // from loading and instead show the password-change screen. Once they save their
+  // new password we clear this flag and redirect to login.
+  if (isPasswordRecovery) {
+    return (
+      <PasswordRecoveryScreen
+        onComplete={() => {
+          setIsPasswordRecovery(false);
+          setSession(null);
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }}
+      />
+    );
+  }
+
   if (!session) return <Auth onAuthSuccess={initializeApp} />;
 
   const userName = session?.user?.user_metadata?.full_name || session?.user?.email?.split('@')[0] || 'Trader';
@@ -507,6 +624,7 @@ const App: React.FC = () => {
             <SidebarNavBtn onClick={() => setActiveView('TRADES_LOG')} active={activeView === 'TRADES_LOG'} icon={<ICONS.Journal className="w-5 h-5" />} label="Trade Log" />
             <SidebarNavBtn onClick={() => setActiveView('CALENDAR')} active={activeView === 'CALENDAR'} icon={<ICONS.Calendar className="w-5 h-5" />} label="Calendar" />
             <SidebarNavBtn onClick={() => setActiveView('ANALYTICS')} active={activeView === 'ANALYTICS'} icon={<ICONS.Performance className="w-5 h-5" />} label="Analytics" />
+            <SidebarNavBtn onClick={() => setActiveView('PLAYBOOK')} active={activeView === 'PLAYBOOK'} icon={<PlaybookIcon className="w-5 h-5" />} label="Playbook" />
             <SidebarNavBtn onClick={() => setActiveView('PSYCHOLOGY')} active={activeView === 'PSYCHOLOGY'} icon={<ICONS.Psychology className="w-5 h-5" />} label="Psychology" />
             <SidebarNavBtn onClick={() => setActiveView('AI_INTELLIGENCE')} active={activeView === 'AI_INTELLIGENCE'} icon={<ICONS.AIIntelligence className="w-5 h-5" />} label="AI Intel" />
             <SidebarNavBtn onClick={() => setActiveView('GAMIFICATION' as any)} active={(activeView as string) === 'GAMIFICATION'} icon={<svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>} label="Progress" />
@@ -715,6 +833,26 @@ const App: React.FC = () => {
               {(activeView as string) === 'GAMIFICATION' && (
                 <Gamification trades={filteredTrades} userName={userName} />
               )}
+              {activeView === 'PLAYBOOK' && (
+                <PlaybookPage
+                  playbooks={playbooks}
+                  trades={filteredTrades}
+                  onSave={(pb) => {
+                    const updated = playbooks.some(p => p.id === pb.id)
+                      ? playbooks.map(p => p.id === pb.id ? pb : p)
+                      : [pb, ...playbooks];
+                    setPlaybooks(updated);
+                    localStorage.setItem('tf_playbooks', JSON.stringify(updated));
+                    syncPlaybooksToSupabase(updated).catch(console.error);
+                  }}
+                  onDelete={(id) => {
+                    const updated = playbooks.filter(p => p.id !== id);
+                    setPlaybooks(updated);
+                    localStorage.setItem('tf_playbooks', JSON.stringify(updated));
+                    syncPlaybooksToSupabase(updated).catch(console.error);
+                  }}
+                />
+              )}
               {activeView === 'SETTINGS' && (
                 <div className="px-6 sm:px-10 lg:px-0 pb-4">
                   <SyncSettings
@@ -875,6 +1013,7 @@ const App: React.FC = () => {
                 { view: 'TRADES_LOG' as ViewType, icon: <ICONS.Journal     className="w-[17px] h-[17px]" />, label: 'Journal',    proOnly: false },
                 { view: 'CALENDAR'   as ViewType, icon: <ICONS.Calendar    className="w-[17px] h-[17px]" />, label: 'Calendar',   proOnly: false },
                 { view: 'ANALYTICS'  as ViewType, icon: <ICONS.Performance className="w-[17px] h-[17px]" />, label: 'Analytics',  proOnly: true  },
+                { view: 'PLAYBOOK'   as ViewType, icon: <PlaybookIcon className="w-[17px] h-[17px]" />,     label: 'Playbook',   proOnly: false },
               ] as const).map(({ view, icon, label, proOnly }) => {
                 const locked = proOnly && userPlan !== 'pro';
                 return (
@@ -1027,6 +1166,7 @@ const App: React.FC = () => {
           activeAccountId={activeAccountId !== 'ALL' ? activeAccountId : (accounts[0]?.id || '')}
           initialData={editingTrade}
           prefillDate={prefillDate}
+          playbooks={playbooks}
           onSave={async (t) => {
             try {
               if (!editingTrade && session?.user) { const check = await canUserAddTrade(session.user.id); if (!check.allowed) { setUpgradePrompt('trades'); return; } }

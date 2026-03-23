@@ -331,12 +331,42 @@ const TradeLog: React.FC<TradeLogProps> = ({ trades, onEdit, onDelete, displayUn
                     
                     <div className="lg:col-span-5">
                        <h5 className="text-[9px] font-black text-black/30 uppercase tracking-widest mb-4 flex items-center gap-2">Execution Proof</h5>
-                       {trade.chartLink ? (
+                       
+                       {/* R2 uploaded images */}
+                       {trade.images && trade.images.length > 0 && (
+                         <div className="space-y-2 mb-4">
+                           <div className={`grid gap-2 ${trade.images.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                             {(trade.images as string[]).map((url, i) => (
+                               <div
+                                 key={i}
+                                 className="rounded-[1.5rem] border border-white overflow-hidden bg-slate-50 aspect-video ios-shadow relative group cursor-pointer"
+                                 onClick={() => window.open(url, '_blank')}
+                               >
+                                 <img src={url} alt={`Chart ${i + 1}`} className="w-full h-full object-cover" loading="lazy" />
+                                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+                                   <div className="w-8 h-8 bg-white/90 rounded-full flex items-center justify-center">
+                                     <ICONS.External className="w-3.5 h-3.5 text-black" />
+                                   </div>
+                                 </div>
+                                 <div className="absolute top-2 left-2 bg-black/60 text-white text-[8px] font-black px-1.5 py-0.5 rounded-md">
+                                   {i + 1}
+                                 </div>
+                               </div>
+                             ))}
+                           </div>
+                         </div>
+                       )}
+
+                       {/* Legacy chartLink URL */}
+                       {trade.chartLink && !(trade.images && trade.images.length > 0) && (
                          <div className="rounded-[2rem] border border-white overflow-hidden bg-slate-50 aspect-video lg:aspect-square ios-shadow relative group">
                             <img src={getImageUrl(trade.chartLink)} alt="Proof" className="w-full h-full object-cover" loading="lazy" />
                             <a href={trade.chartLink} target="_blank" rel="noopener noreferrer" className="absolute top-3 right-3 p-3 bg-white/80 backdrop-blur-md rounded-xl text-black shadow-lg"><ICONS.External className="w-4 h-4" /></a>
                          </div>
-                       ) : (
+                       )}
+
+                       {/* No images at all */}
+                       {!trade.chartLink && !(trade.images && trade.images.length > 0) && (
                          <div className="rounded-[2rem] border-dashed border-slate-200 bg-slate-100/50 aspect-video lg:aspect-square flex flex-col items-center justify-center opacity-20 gap-3">
                             <ICONS.Logo className="w-8 h-8" />
                             <p className="text-[9px] font-black uppercase tracking-widest">No chart linked</p>
