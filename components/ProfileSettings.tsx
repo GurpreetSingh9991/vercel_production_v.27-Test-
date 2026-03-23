@@ -1,0 +1,428 @@
+import React, { useState, useEffect } from 'react';
+import { ICONS } from '../constants';
+import { getSupabaseClient, getSession } from '../services/supabase';
+import { getTradeCountThisMonth, startStripeCheckout } from '../services/planService';
+import { LegalModal } from './Legal';
+type LegalDoc = 'privacy' | 'terms';
+
+interface ProfileSettingsProps {
+  onClose: () => void;
+  plan?: 'free' | 'pro';
+}
+
+const ProfileSettings: React.FC<ProfileSettingsProps> = ({ onClose, plan = 'free' }) => {
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [usage, setUsage] = useState<number>(0);
+  const [openLegal, setOpenLegal] = useState<LegalDoc | null>(null);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  
+  // Developer-only gate: only show dev tools to the account owner.
+  // Set VITE_OWNER_EMAIL=your@email.com in Netlify env vars / .env.local
+  // Other users will never see this section — it's invisible in the UI.
+  const ownerEmail = typeof import.meta !== 'undefined'
+    ? (import.meta.env?.VITE_OWNER_EMAIL || '')
+    : '';
+  const [currentUserEmail, setCurrentUserEmail] = useState('');
+  useEffect(() => {
+    getSession().then(s => setCurrentUserEmail(s?.user?.email || ''));
+  }, []);
+  const isOwner = ownerEmail && currentUserEmail && currentUserEmail === ownerEmail;
+  
+  const [formData, setFormData] = useState({
+    fullName: '',
+    email: '',
+    phone: '',
+    avatarUrl: ''
+  });
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const session = await getSession();
+      if (session?.user) {
+        setFormData({
+          fullName: session.user.user_metadata?.full_name || '',
+          email: session.user.email || '',
+          phone: session.user.user_metadata?.phone_number || '',
+          avatarUrl: session.user.user_metadata?.avatar_url || ''
+        });
+        
+        const count = await getTradeCountThisMonth(session.user.id);
+        setUsage(count);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setSuccess(false);
+
+    const client = getSupabaseClient();
+    if (!client) return;
+
+    try {
+      const { error: updateError } = await client.auth.updateUser({
+        email: formData.email,
+        data: {
+          full_name: formData.fullName,
+          phone_number: formData.phone,
+          avatar_url: formData.avatarUrl
+        }
+      });
+
+      if (updateError) throw updateError;
+      
+      setSuccess(true);
+      setTimeout(() => {
+        setSuccess(false);
+        window.location.reload();
+      }, 1500);
+    } catch (err: any) {
+      setError(err.message || "Failed to update profile.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData(prev => ({ ...prev, avatarUrl: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleManageSubscription = async () => {
+    setLoading(true);
+    try {
+      const s = await getSession();
+      if (!s?.user?.id) throw new Error('Not logged in');
+      const response = await fetch('/.netlify/functions/customer-portal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: s.user.id }),
+      });
+      const { url, error } = await response.json();
+      if (error) throw new Error(error);
+      if (url) window.location.href = url;
+    } catch (err: any) {
+      setError(err.message || 'Could not open billing portal');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancelSubscription = async () => {
+    setIsCancelling(true);
+    try {
+      const s = await getSession();
+      if (!s?.user?.id) throw new Error('Not logged in');
+      const response = await fetch('/.netlify/functions/customer-portal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: s.user.id }),
+      });
+      const { url, error: portalError } = await response.json();
+      if (portalError) throw new Error(portalError);
+      if (url) window.location.href = url;
+    } catch (err: any) {
+      setError(err.message || 'Could not open cancellation portal. Please contact support@tradeflowjournal.com');
+    } finally {
+      setIsCancelling(false);
+      setShowCancelConfirm(false);
+    }
+  };
+
+  const handleDownloadProject = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch('/api/download-project');
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'project.zip';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err: any) {
+      setError(err.message || "Failed to download project zip");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-white/40 backdrop-blur-md z-[150] flex items-center justify-center p-4 pt-safe pb-safe">
+      <div className="apple-glass w-full max-w-xl rounded-[3rem] shadow-2xl border border-white relative ios-shadow animate-in zoom-in-95 fade-in duration-500 my-auto overflow-hidden">
+        
+        {/* Header */}
+        <div className="p-6 md:p-8 border-b border-slate-100 flex justify-between items-center bg-white/30">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 bg-black rounded-2xl flex items-center justify-center text-white shadow-lg overflow-hidden border border-white/20">
+              <img 
+                src={formData.avatarUrl || `https://api.dicebear.com/7.x/notionists/svg?seed=${formData.fullName}`} 
+                className="w-full h-full object-cover" 
+                alt="Avatar" 
+              />
+            </div>
+            <div>
+              <h2 className="text-lg font-black text-black tracking-tighter uppercase leading-none">Profile Access</h2>
+              <p className="text-[8px] font-black text-black opacity-50 uppercase tracking-widest mt-1">Identity & Plan Control</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-10 h-10 flex items-center justify-center hover:bg-black/5 rounded-full transition-colors text-black opacity-40 hover:opacity-100">
+            <ICONS.Close className="w-6 h-6" />
+          </button>
+        </div>
+
+        <div className="p-6 md:p-10 space-y-8 max-h-[70vh] overflow-y-auto custom-scrollbar">
+          
+          {/* Subscription Tier Section */}
+          <section className="space-y-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-1 h-4 bg-black rounded-full"></div>
+              <h3 className="text-[10px] font-black text-black uppercase tracking-[0.2em]">Service Tier</h3>
+            </div>
+            
+            <div className={`p-6 rounded-[2rem] border transition-all ${plan === 'pro' ? 'bg-black text-white border-black shadow-xl' : 'bg-white/40 border-black/5'}`}>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h4 className={`text-xl font-black tracking-tight flex items-center gap-2 ${plan === 'pro' ? 'text-white' : 'text-black'}`}>
+                    {plan === 'pro' ? 'Journal Pro' : 'Free Terminal'}
+                    {plan === 'pro' && <ICONS.Zap className="w-5 h-5 text-emerald-400" />}
+                  </h4>
+                  <p className={`text-[9px] font-bold uppercase tracking-widest mt-1 ${plan === 'pro' ? 'text-white/40' : 'text-black/30'}`}>
+                    Active Subscription
+                  </p>
+                </div>
+                <div className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest ${plan === 'pro' ? 'bg-white/10 text-white' : 'bg-black text-white'}`}>
+                  {plan.toUpperCase()}
+                </div>
+              </div>
+              
+              <div className="space-y-3">
+                 <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
+                    <span className={plan === 'pro' ? 'text-white/40' : 'text-black/40'}>Usage Log</span>
+                    <span className={plan === 'pro' ? 'text-emerald-400' : 'text-black'}>{usage} / {plan === 'pro' ? '∞' : '15'} Trades</span>
+                 </div>
+                 <div className="w-full h-2 bg-black/10 rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full transition-all duration-1000 ${plan === 'pro' ? 'bg-emerald-400' : usage >= 12 ? 'bg-rose-500' : 'bg-black'}`} 
+                      style={{ width: `${plan === 'pro' ? 100 : (usage / 15) * 100}%` }} 
+                    />
+                 </div>
+                 {plan === 'free' && (
+                    <button
+                      onClick={async () => { const s = await getSession(); if (s?.user?.id) startStripeCheckout(s.user.id); }}
+                      className="w-full mt-2 py-3 bg-black text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.15em] shadow-lg active:scale-95 transition-all hover:bg-black/80 flex items-center justify-center gap-2"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                      Upgrade to Pro — $8.99/mo
+                    </button>
+                 )}
+                 {plan === 'pro' && !showCancelConfirm && (
+                    <button
+                      onClick={() => setShowCancelConfirm(true)}
+                      disabled={loading}
+                      className="w-full mt-2 py-2.5 bg-white/60 border border-rose-200 text-rose-400 rounded-2xl text-[9px] font-black uppercase tracking-[0.15em] active:scale-95 transition-all hover:bg-rose-50 hover:text-rose-600 flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                      Cancel Subscription
+                    </button>
+                 )}
+                 {plan === 'pro' && showCancelConfirm && (
+                    <div className="mt-2 bg-rose-50 border border-rose-200 rounded-2xl p-4 animate-in slide-in-from-bottom-2 duration-200">
+                      <p className="text-[10px] font-black text-rose-700 mb-1">⚠️ No Refunds — Are you sure?</p>
+                      <p className="text-[9px] text-rose-600/80 leading-relaxed mb-3">
+                        Your Pro access ends immediately. All subscription fees are <strong>non-refundable</strong> — no exceptions. You will lose access to AI insights, analytics, and multi-account management.
+                      </p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setShowCancelConfirm(false)}
+                          className="flex-1 py-2.5 bg-white border border-black/10 text-black/50 rounded-xl text-[8px] font-black uppercase tracking-widest hover:text-black transition-all"
+                        >
+                          Keep Pro
+                        </button>
+                        <button
+                          onClick={handleCancelSubscription}
+                          disabled={isCancelling}
+                          className="flex-1 py-2.5 bg-rose-600 text-white rounded-xl text-[8px] font-black uppercase tracking-widest active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-1"
+                        >
+                          {isCancelling ? <><div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin"/>Processing...</> : 'Yes, Cancel'}
+                        </button>
+                      </div>
+                    </div>
+                 )}
+              </div>
+            </div>
+          </section>
+
+          {/* Developer Tools Section — OWNER ONLY, invisible to all other users */}
+          {isOwner && (
+          <section className="space-y-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-1 h-4 bg-black rounded-full"></div>
+              <h3 className="text-[10px] font-black text-black uppercase tracking-[0.2em]">Developer Tools</h3>
+            </div>
+            
+            <div className="p-6 rounded-[2rem] border bg-slate-50 border-black/5 flex items-center justify-between">
+              <div>
+                <h4 className="text-sm font-black tracking-tight text-black">Project Archive</h4>
+                <p className="text-[8px] font-bold uppercase tracking-widest text-black/30 mt-1">Export full source code as .ZIP</p>
+              </div>
+              <button 
+                type="button"
+                onClick={handleDownloadProject}
+                disabled={loading}
+                className="w-12 h-12 bg-black rounded-2xl flex items-center justify-center text-white shadow-lg hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
+              >
+                <ICONS.Download className="w-5 h-5" />
+              </button>
+            </div>
+          </section>
+          )}
+
+          {/* Identity Section */}
+          <form onSubmit={handleUpdate} className="space-y-6">
+            <div className="flex items-center gap-2.5">
+              <div className="w-1 h-4 bg-black rounded-full"></div>
+              <h3 className="text-[10px] font-black text-black uppercase tracking-[0.2em]">User Identification</h3>
+            </div>
+
+            <div className="flex flex-col items-center mb-6">
+              <div className="relative group">
+                <div className="w-24 h-24 rounded-[2rem] bg-black/5 border border-black/10 overflow-hidden shadow-inner">
+                  <img 
+                    src={formData.avatarUrl || `https://api.dicebear.com/7.x/notionists/svg?seed=${formData.fullName}`} 
+                    className="w-full h-full object-cover" 
+                    alt="Current Avatar" 
+                  />
+                </div>
+                <label className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-[2rem] cursor-pointer text-white text-[8px] font-black uppercase tracking-widest">
+                  Change
+                  <input type="file" className="hidden" accept="image/*" onChange={handleAvatarUpload} />
+                </label>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6">
+              <div className="space-y-2">
+                <label className="block text-[8px] font-black text-black uppercase tracking-widest ml-2">Full Name</label>
+                <input 
+                  type="text" 
+                  value={formData.fullName}
+                  onChange={(e) => setFormData(prev => ({ ...prev, fullName: e.target.value }))}
+                  placeholder="Trader Name"
+                  className="w-full bg-white border border-slate-200 rounded-2xl p-4 text-[13px] text-black focus:border-black outline-none transition-all font-bold shadow-sm"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-[8px] font-black text-black uppercase tracking-widest ml-2">E-mail address</label>
+                <input 
+                  type="email" 
+                  value={formData.email}
+                  onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                  placeholder="email@flow.com"
+                  className="w-full bg-white border border-slate-200 rounded-2xl p-4 text-[13px] text-black focus:border-black outline-none transition-all font-bold shadow-sm"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-[8px] font-black text-black uppercase tracking-widest ml-2">Phone Number</label>
+                <input 
+                  type="tel" 
+                  value={formData.phone}
+                  onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+                  placeholder="+1 (000) 000-0000"
+                  className="w-full bg-white border border-slate-200 rounded-2xl p-4 text-[13px] text-black focus:border-black outline-none transition-all font-bold shadow-sm"
+                />
+              </div>
+            </div>
+          </form>
+
+          {error && (
+            <div className="bg-rose-500/10 border border-rose-500/20 py-3 px-6 rounded-2xl text-center">
+              <p className="text-rose-600 text-[10px] font-black uppercase tracking-widest">{error}</p>
+            </div>
+          )}
+
+          {success && (
+            <div className="bg-emerald-500/10 border border-emerald-500/20 py-3 px-6 rounded-2xl text-center">
+              <p className="text-emerald-600 text-[10px] font-black uppercase tracking-widest">Update Successful</p>
+            </div>
+          )}
+
+          {/* Legal Documents Section */}
+          <section className="space-y-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-1 h-4 bg-black rounded-full"></div>
+              <h3 className="text-[10px] font-black text-black uppercase tracking-[0.2em]">Legal</h3>
+            </div>
+            <div className="space-y-2">
+              {([
+                { id: 'terms' as LegalDoc, label: 'Terms & Conditions', sub: 'Usage, billing, liability & Apple provisions' },
+                { id: 'privacy' as LegalDoc, label: 'Privacy Policy', sub: 'GDPR · CCPA · PIPEDA compliant' },
+              ]).map(({ id, label, sub }) => (
+                <button
+                  key={id}
+                  onClick={() => setOpenLegal(id)}
+                  className="w-full flex items-center gap-4 bg-white/40 hover:bg-white/70 border border-black/5 rounded-2xl p-4 text-left transition-all group"
+                >
+                  <div className="w-8 h-8 bg-black/5 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:bg-black/10 transition-all">
+                    <svg className="w-4 h-4 text-black/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] font-black text-black">{label}</p>
+                    <p className="text-[9px] text-black/30 font-bold mt-0.5">{sub}</p>
+                  </div>
+                  <svg className="w-4 h-4 text-black/20 group-hover:text-black/50 flex-shrink-0 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/></svg>
+                </button>
+              ))}
+            </div>
+            <p className="text-[8px] text-black/20 font-bold uppercase tracking-widest text-center">Governed by Ontario, Canada law · v2025.02</p>
+          </section>
+
+          {/* Footer Info */}
+          <div className="flex items-center justify-between text-[8px] font-black text-black opacity-20 uppercase tracking-[0.3em] pt-4">
+            <span>Identity Protocol SEC-7</span>
+            <span>Journal Build v1.08</span>
+          </div>
+        </div>
+
+        {/* Footer Actions */}
+        <div className="p-6 md:p-8 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row gap-3">
+          <button onClick={onClose} className="flex-1 py-4 rounded-full text-black opacity-40 font-black text-[10px] uppercase tracking-widest hover:opacity-100 transition-all">Abort</button>
+          <button 
+            onClick={handleUpdate}
+            disabled={loading}
+            className="
+              flex-1 py-4 rounded-full 
+              bg-black text-white
+              font-black text-[11px] uppercase tracking-[0.3em]
+              shadow-2xl transition-all duration-300 hover:brightness-110 active:scale-95 disabled:opacity-50
+            "
+          >
+            {loading ? 'Synchronizing...' : 'Apply Changes'}
+          </button>
+        </div>
+      </div>
+
+      {/* Legal document modals */}
+      {openLegal && <LegalModal doc={openLegal} onClose={() => setOpenLegal(null)} />}
+    </div>
+  );
+};
+
+export default ProfileSettings;
