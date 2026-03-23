@@ -224,7 +224,9 @@ const Dashboard: React.FC<DashboardProps> = ({ trades, activeAccount, accounts, 
         : currentTrades.reduce((sum, t) => sum + t.pnl, 0);        // Sum of $ values
     
     const avgPnL = totalNetPnL / currentTrades.length;
-    const winRate = currentTrades.length ? (winTrades.length / currentTrades.length) * 100 : 0;
+    const winRate = (winTrades.length + lossTrades.length) > 0
+      ? (winTrades.length / (winTrades.length + lossTrades.length)) * 100
+      : 0;
     
     const totalWinPnL = winTrades.reduce((sum, t) => sum + formatValue(t.pnl, t), 0);
     const totalLossPnL = Math.abs(lossTrades.reduce((sum, t) => sum + formatValue(t.pnl, t), 0));

@@ -68,13 +68,15 @@ const Analytics: React.FC<AnalyticsProps> = ({ trades }) => {
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const dayStats = dayNames.map((day, idx) => {
       const dayTrades = trades.filter(t => new Date(t.date + 'T12:00:00').getDay() === idx);
-      const wins = dayTrades.filter(t => t.pnl > 0).length;
+      const wins = dayTrades.filter(t => t.result === 'WIN').length;
+      const losses = dayTrades.filter(t => t.result === 'LOSS').length;
+      const decided = wins + losses;
       const totalPnL = dayTrades.reduce((sum, t) => sum + (Number(t.pnl) || 0), 0);
       return {
         name: day.substring(0, 3),
         fullName: day,
         trades: dayTrades.length,
-        winRate: dayTrades.length > 0 ? (wins / dayTrades.length) * 100 : 0,
+        winRate: decided > 0 ? (wins / decided) * 100 : 0,
         totalPnL: parseFloat(totalPnL.toFixed(2)),
         avgPnL: dayTrades.length > 0 ? totalPnL / dayTrades.length : 0
       };
@@ -84,12 +86,14 @@ const Analytics: React.FC<AnalyticsProps> = ({ trades }) => {
     const sessionNames = ['Pre-Market', 'Open', 'Mid-Day', 'Power Hour', 'After Hours'];
     const sessionStats = sessionNames.map(session => {
       const sessionTrades = trades.filter(t => getSession(t.entryTime) === session);
-      const wins = sessionTrades.filter(t => t.pnl > 0).length;
+      const wins = sessionTrades.filter(t => t.result === 'WIN').length;
+      const losses = sessionTrades.filter(t => t.result === 'LOSS').length;
+      const decided = wins + losses;
       const totalPnL = sessionTrades.reduce((sum, t) => sum + (Number(t.pnl) || 0), 0);
       return {
         name: session,
         trades: sessionTrades.length,
-        winRate: sessionTrades.length > 0 ? (wins / sessionTrades.length) * 100 : 0,
+        winRate: decided > 0 ? (wins / decided) * 100 : 0,
         totalPnL: parseFloat(totalPnL.toFixed(2)),
         avgPnL: sessionTrades.length > 0 ? totalPnL / sessionTrades.length : 0
       };
@@ -106,11 +110,12 @@ const Analytics: React.FC<AnalyticsProps> = ({ trades }) => {
       const setupTrades = trades.filter(t => t.setupType === setup);
       if (setupTrades.length === 0) return { setup, trades: 0, winRate: 0, totalPnL: 0, avgPnL: 0, profitFactor: 0 };
       
-      const wins = setupTrades.filter(t => t.pnl > 0);
-      const losses = setupTrades.filter(t => t.pnl < 0);
+      const wins = setupTrades.filter(t => t.result === 'WIN');
+      const losses = setupTrades.filter(t => t.result === 'LOSS');
+      const decided = wins.length + losses.length;
       
       const totalPnL = setupTrades.reduce((sum, t) => sum + (Number(t.pnl) || 0), 0);
-      const winRate = (wins.length / setupTrades.length) * 100;
+      const winRate = decided > 0 ? (wins.length / decided) * 100 : 0;
       const avgPnL = totalPnL / setupTrades.length;
       
       const grossWins = wins.reduce((sum, t) => sum + (Number(t.pnl) || 0), 0);

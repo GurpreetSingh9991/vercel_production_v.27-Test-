@@ -411,8 +411,10 @@ const App: React.FC = () => {
     const todayPct = startingEquity > 0 ? (todayPnL / startingEquity) * 100 : 0;
     const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
     const weekTrades = filteredTrades.filter(t => new Date(t.date) >= weekAgo);
-    const wins = filteredTrades.filter(t => t.pnl > 0).length;
-    const winRate = filteredTrades.length > 0 ? (wins / filteredTrades.length) * 100 : 0;
+    const wins = filteredTrades.filter(t => t.result === 'WIN').length;
+    const losses = filteredTrades.filter(t => t.result === 'LOSS').length;
+    const decidedCount = wins + losses;
+    const winRate = decidedCount > 0 ? (wins / decidedCount) * 100 : 0;
     const alerts: any[] = [];
     let streak = 0;
     for (const t of [...filteredTrades].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())) { if (t.pnl < 0) streak++; else if (t.pnl > 0) break; }
