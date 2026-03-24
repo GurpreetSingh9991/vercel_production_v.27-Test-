@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ICONS } from '../constants';
 import { getSupabaseClient, getSession } from '../services/supabase';
 import { getTradeCountThisMonth, startStripeCheckout } from '../services/planService';
@@ -18,6 +18,21 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ onClose, plan = 'free
   const [openLegal, setOpenLegal] = useState<LegalDoc | null>(null);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+
+  // Trading Defaults (persisted to localStorage)
+  const [defaultRiskPct, setDefaultRiskPct] = useState<number>(() => {
+    try { return parseFloat(localStorage.getItem('tf_default_risk_pct') || '1.0'); } catch { return 1.0; }
+  });
+  const [defaultCommission, setDefaultCommission] = useState<number>(() => {
+    try { return parseFloat(localStorage.getItem('tf_default_commission') || '0'); } catch { return 0; }
+  });
+  const [maxDailyLoss, setMaxDailyLoss] = useState<number>(() => {
+    try { return parseFloat(localStorage.getItem('tf_max_daily_loss') || '0'); } catch { return 0; }
+  });
+  const [maxDailyTrades, setMaxDailyTrades] = useState<number>(() => {
+    try { return parseInt(localStorage.getItem('tf_max_daily_trades') || '0'); } catch { return 0; }
+  });
+  const [showWhatsNew, setShowWhatsNew] = useState(false);
 
   // Password change
   const [currentPassword, setCurrentPassword]     = useState('');
@@ -473,6 +488,207 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ onClose, plan = 'free
                 >
                   {passwordLoading ? 'Updating…' : 'Update Password'}
                 </button>
+              </div>
+            )}
+          </section>
+
+          {/* ── Trading Defaults Section ─────────────────────────────────── */}
+          <section className="space-y-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-1 h-4 bg-black rounded-full" />
+              <h3 className="text-[10px] font-black text-black uppercase tracking-[0.2em]">Trade Preferences</h3>
+            </div>
+
+            <div className="p-6 rounded-[2rem] border bg-white/40 border-black/5 space-y-6">
+
+              {/* Default risk % */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[11px] font-black text-black">Default Risk per Trade</p>
+                    <p className="text-[9px] text-black/30 font-bold mt-0.5">Pre-fills your risk field when logging trades</p>
+                  </div>
+                  <span className="text-[13px] font-black text-black">{defaultRiskPct.toFixed(1)}%</span>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  {[0.5, 1.0, 1.5, 2.0, 2.5].map(pct => (
+                    <button
+                      key={pct}
+                      type="button"
+                      onClick={() => { setDefaultRiskPct(pct); localStorage.setItem('tf_default_risk_pct', String(pct)); }}
+                      className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${
+                        defaultRiskPct === pct
+                          ? 'bg-black text-white border-black'
+                          : 'bg-white text-black/40 border-black/10 hover:border-black/30 hover:text-black/70'
+                      }`}
+                    >
+                      {pct.toFixed(1)}%
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="h-px bg-black/5" />
+
+              {/* Default commission */}
+              <div className="space-y-2">
+                <p className="text-[11px] font-black text-black">Default Commission ($)</p>
+                <p className="text-[9px] text-black/30 font-bold">Auto-deducted from P&L when logging each trade</p>
+                <div className="flex items-center gap-2 bg-white border border-black/10 rounded-xl p-3">
+                  <span className="text-[11px] font-bold text-black/40">$</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={defaultCommission || ''}
+                    onChange={e => { const v = parseFloat(e.target.value) || 0; setDefaultCommission(v); localStorage.setItem('tf_default_commission', String(v)); }}
+                    placeholder="0.00"
+                    className="flex-1 bg-transparent text-[13px] font-black text-black outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="h-px bg-black/5" />
+
+              {/* Max daily loss */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[11px] font-black text-black">Max Daily Loss ($)</p>
+                    <p className="text-[9px] text-black/30 font-bold">Warns you when you hit your daily drawdown limit</p>
+                  </div>
+                  {maxDailyLoss > 0 && (
+                    <span className="text-[11px] font-black text-rose-500">${maxDailyLoss.toFixed(0)}</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 bg-white border border-black/10 rounded-xl p-3">
+                  <span className="text-[11px] font-bold text-black/40">$</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={maxDailyLoss || ''}
+                    onChange={e => { const v = parseFloat(e.target.value) || 0; setMaxDailyLoss(v); localStorage.setItem('tf_max_daily_loss', String(v)); }}
+                    placeholder="0 = disabled"
+                    className="flex-1 bg-transparent text-[13px] font-black text-black outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="h-px bg-black/5" />
+
+              {/* Max daily trades */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[11px] font-black text-black">Max Daily Trades</p>
+                    <p className="text-[9px] text-black/30 font-bold">Helps prevent overtrading — alerts when reached</p>
+                  </div>
+                  {maxDailyTrades > 0 && (
+                    <span className="text-[11px] font-black text-amber-500">{maxDailyTrades}</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 bg-white border border-black/10 rounded-xl p-3">
+                  <span className="text-[11px] font-bold text-black/40">#</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={maxDailyTrades || ''}
+                    onChange={e => { const v = parseInt(e.target.value) || 0; setMaxDailyTrades(v); localStorage.setItem('tf_max_daily_trades', String(v)); }}
+                    placeholder="0 = disabled"
+                    className="flex-1 bg-transparent text-[13px] font-black text-black outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2 p-3 bg-black/[0.03] rounded-xl border border-black/5">
+                <svg className="w-3.5 h-3.5 text-black/30 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <p className="text-[9px] font-bold text-black/40 leading-relaxed">These defaults pre-fill your trade form and power the risk alerts on your dashboard.</p>
+              </div>
+            </div>
+          </section>
+
+          {/* ── What's New Section ─────────────────────────────────────────── */}
+          <section className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-1 h-4 bg-black rounded-full" />
+                <h3 className="text-[10px] font-black text-black uppercase tracking-[0.2em]">What's New</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowWhatsNew(s => !s)}
+                className="text-[9px] font-black uppercase tracking-widest text-black/30 hover:text-black transition-colors"
+              >
+                {showWhatsNew ? 'Collapse' : 'Show changelog'}
+              </button>
+            </div>
+
+            {showWhatsNew && (
+              <div className="space-y-3 animate-in slide-in-from-top-2 duration-200">
+                {[
+                  {
+                    emoji: '⚡',
+                    version: 'Latest',
+                    title: 'Performance & Chart Overhaul',
+                    items: [
+                      'Equity curve now shows cumulative P&L from zero — growth is immediately readable',
+                      'Dual-color gradient: green above zero, red below, with zero reference line',
+                      'Discipline score replaced with inline progress bar',
+                      'Streak card now shows growing dot-bar visualization',
+                    ],
+                  },
+                  {
+                    emoji: '🏢',
+                    version: 'v1.0.28',
+                    title: 'Prop Firm Picker',
+                    items: [
+                      'Account Hub now opens a guided Prop Firm template selector',
+                      '11 templates across $25K, $50K, $100K, $150K accounts',
+                      'Intraday Trailing, EOD, and Static drawdown types explained',
+                      'Auto-fills starting balance from chosen template',
+                    ],
+                  },
+                  {
+                    emoji: '⚙️',
+                    version: 'v1.0.27',
+                    title: 'Trading Defaults & News Impact',
+                    items: [
+                      'Default risk %, commission, max daily loss & trade limits now in Settings',
+                      'News Impact section added to Analytics — compare near-news vs clear market',
+                      'All preferences saved locally — persist across sessions',
+                    ],
+                  },
+                  {
+                    emoji: '🛡️',
+                    version: 'v1.0.26',
+                    title: 'Pro subscription fixes',
+                    items: [
+                      'Fixed Pro users briefly seeing Free UI on launch',
+                      'Supabase plan now checked alongside Apple IAP',
+                      'Race condition in entitlement check fully resolved',
+                    ],
+                  },
+                ].map(({ emoji, version, title, items }) => (
+                  <div key={version} className="p-5 rounded-[1.5rem] bg-white/40 border border-black/5 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <span className="text-base">{emoji}</span>
+                      <div>
+                        <p className="text-[11px] font-black text-black">{title}</p>
+                        <p className="text-[9px] text-black/30 font-bold mt-0.5">{version}</p>
+                      </div>
+                    </div>
+                    <ul className="space-y-2">
+                      {items.map((item, i) => (
+                        <li key={i} className="flex items-start gap-2">
+                          <div className="w-1 h-1 rounded-full bg-black/20 mt-1.5 flex-shrink-0" />
+                          <p className="text-[10px] font-bold text-black/50 leading-relaxed">{item}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
               </div>
             )}
           </section>

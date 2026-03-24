@@ -532,6 +532,121 @@ const Analytics: React.FC<AnalyticsProps> = ({ trades }) => {
           </div>
         </section>
       </div>
+      {/* 5. News Impact Analysis */}
+      {(() => {
+        // Classify trades: were they within ±60min of a "high-impact" tag?
+        // Since we don't fetch live news, we use the trade tags field — traders 
+        // who tag "News", "News Event Overlap", or "FOMC" are flagged automatically.
+        const NEWS_TAGS = ['news', 'fomc', 'cpi', 'nfp', 'fed', 'earnings', 'news event overlap', 'high impact'];
+        const isNearNews = (t: any) => {
+          const tagStr = (Array.isArray(t.tags) ? t.tags.join(' ') : (t.tags || '')).toLowerCase();
+          const mistakes = (t.mistakes || []).map((m: any) => (m.type || m.category || '').toLowerCase());
+          return NEWS_TAGS.some(n => tagStr.includes(n) || mistakes.some((ms: string) => ms.includes(n)));
+        };
+
+        const nearNewsTrades = trades.filter(isNearNews);
+        const clearTrades = trades.filter(t => !isNearNews(t));
+
+        if (nearNewsTrades.length === 0 && clearTrades.length === 0) return null;
+
+        const groupStats = (grp: typeof trades) => {
+          if (!grp.length) return { count: 0, winRate: 0, avgPnL: 0, totalPnL: 0 };
+          const wins = grp.filter(t => t.result === 'WIN').length;
+          const decided = grp.filter(t => t.result !== 'BE').length;
+          const total = grp.reduce((s, t) => s + (Number(t.pnl) || 0), 0);
+          return {
+            count: grp.length,
+            winRate: decided > 0 ? (wins / decided) * 100 : 0,
+            avgPnL: total / grp.length,
+            totalPnL: total,
+          };
+        };
+
+        const newsStats = groupStats(nearNewsTrades);
+        const clearStats = groupStats(clearTrades);
+
+        const edge = clearStats.avgPnL - newsStats.avgPnL;
+
+        return (
+          <section className="space-y-4">
+            <h3 className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] ml-2 flex items-center gap-2">
+              <div className="w-1 h-3 bg-amber-500 rounded-full" /> News Impact Analysis
+            </h3>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Near-news card */}
+              <div className="apple-glass p-6 rounded-[2rem] border-white space-y-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-amber-500" />
+                  <span className="text-[9px] font-black uppercase tracking-widest text-amber-600">Near News Event</span>
+                  <span className="ml-auto text-[9px] font-black text-black/30">{newsStats.count} trades</span>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { label: 'Win Rate', value: `${newsStats.winRate.toFixed(0)}%`, color: newsStats.winRate >= 50 ? 'text-emerald-600' : 'text-rose-500' },
+                    { label: 'Avg P&L', value: `${newsStats.avgPnL >= 0 ? '+' : ''}$${newsStats.avgPnL.toFixed(0)}`, color: newsStats.avgPnL >= 0 ? 'text-emerald-600' : 'text-rose-500' },
+                    { label: 'Net P&L', value: `$${newsStats.totalPnL.toFixed(0)}`, color: newsStats.totalPnL >= 0 ? 'text-emerald-600' : 'text-rose-500' },
+                  ].map(({ label, value, color }) => (
+                    <div key={label} className="bg-black/[0.03] rounded-xl p-2.5 text-center">
+                      <p className="text-[8px] font-black text-black/30 uppercase tracking-widest">{label}</p>
+                      <p className={`text-[12px] font-black mt-0.5 ${color}`}>{newsStats.count > 0 ? value : '—'}</p>
+                    </div>
+                  ))}
+                </div>
+                {newsStats.count === 0 && (
+                  <p className="text-[9px] font-bold text-black/30 text-center">
+                    Tag trades with "News", "FOMC", "CPI" etc. to populate this section
+                  </p>
+                )}
+              </div>
+
+              {/* Clear market card */}
+              <div className="apple-glass p-6 rounded-[2rem] border-white space-y-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                  <span className="text-[9px] font-black uppercase tracking-widest text-emerald-600">Clear Market</span>
+                  <span className="ml-auto text-[9px] font-black text-black/30">{clearStats.count} trades</span>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { label: 'Win Rate', value: `${clearStats.winRate.toFixed(0)}%`, color: clearStats.winRate >= 50 ? 'text-emerald-600' : 'text-rose-500' },
+                    { label: 'Avg P&L', value: `${clearStats.avgPnL >= 0 ? '+' : ''}$${clearStats.avgPnL.toFixed(0)}`, color: clearStats.avgPnL >= 0 ? 'text-emerald-600' : 'text-rose-500' },
+                    { label: 'Net P&L', value: `$${clearStats.totalPnL.toFixed(0)}`, color: clearStats.totalPnL >= 0 ? 'text-emerald-600' : 'text-rose-500' },
+                  ].map(({ label, value, color }) => (
+                    <div key={label} className="bg-black/[0.03] rounded-xl p-2.5 text-center">
+                      <p className="text-[8px] font-black text-black/30 uppercase tracking-widest">{label}</p>
+                      <p className={`text-[12px] font-black mt-0.5 ${color}`}>{clearStats.count > 0 ? value : '—'}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Insight banner */}
+            {nearNewsTrades.length > 0 && clearTrades.length > 0 && (
+              <div className={`p-5 rounded-[1.5rem] border ${
+                edge > 0
+                  ? 'bg-emerald-500/5 border-emerald-500/10'
+                  : 'bg-amber-500/5 border-amber-500/10'
+              }`}>
+                <span className={`text-[8px] font-black uppercase tracking-widest block mb-1 ${edge > 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                  {edge > 0 ? 'Clear Market Edge Detected' : 'News Event Warning'}
+                </span>
+                <p className="text-xs font-black text-black leading-tight">
+                  {edge > 0
+                    ? `You average $${Math.abs(edge).toFixed(0)} more per trade in clear market conditions. Avoiding news events is costing you ${((edge / Math.max(Math.abs(newsStats.avgPnL), 0.01)) * 100).toFixed(0)}% less edge.`
+                    : `Your near-news average P&L is $${Math.abs(edge).toFixed(0)} lower per trade. Consider reducing size or sitting out high-impact events.`
+                  }
+                </p>
+                <p className="text-[9px] font-bold text-black/40 italic mt-1">
+                  Strategy: {edge > 0 ? 'Stay out of news windows — your edge is cleaner in quiet markets.' : 'Review your news-event trades and consider a no-trade rule around major releases.'}
+                </p>
+              </div>
+            )}
+          </section>
+        );
+      })()}
+
     </div>
   );
 };

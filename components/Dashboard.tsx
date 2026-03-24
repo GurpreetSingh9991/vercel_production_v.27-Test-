@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Trade, Account, PerformanceUnit } from '../types';
 import { ICONS } from '../constants';
-import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid, BarChart, Bar, Cell } from 'recharts';
+import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid, BarChart, Bar, Cell, ReferenceLine } from 'recharts';
 import TradeCalendar from './TradeCalendar';
 
 type DateRange = 'ALL' | 'TODAY' | '7D' | '30D' | 'MTD' | 'YTD';
@@ -273,12 +273,14 @@ const Dashboard: React.FC<DashboardProps> = ({ trades, activeAccount, accounts, 
     const followedPlanCount = currentTrades.filter(t => t.followedPlan === true).length;
     const disciplineScore = currentTrades.length > 0 ? (followedPlanCount / currentTrades.length) * 100 : 0;
 
-    let cumulative2 = displayUnit === 'CURRENCY' ? (startingEquity || 0) : 0;
-    const equityData = sortedTrades.map((t) => {
+    let cumulative2 = 0;
+    const equityPoints = sortedTrades.map((t) => {
       const val = formatValue(t.pnl, t);
       cumulative2 += val;
       return { value: cumulative2, date: t.date, pnl: val };
     });
+    // Start from 0 baseline so the chart shows PnL growth/decline, not raw balance
+    const equityData = [{ value: 0, date: '', pnl: 0 }, ...equityPoints];
 
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const pnlByDay = days.map((day, idx) => {
@@ -358,7 +360,7 @@ const Dashboard: React.FC<DashboardProps> = ({ trades, activeAccount, accounts, 
       expectancy,
       equityData, 
       pnlByDay,
-      currentBalance: cumulative2,
+      currentBalance: startingEquity + cumulative2,
       streakCount, 
       streakType,
       maxDrawdownPct,
@@ -585,22 +587,74 @@ const Dashboard: React.FC<DashboardProps> = ({ trades, activeAccount, accounts, 
               pill={stats.maxDrawdownPct > 15 ? 'DD' : undefined}
               tooltip="Maximum decline from peak"
             />
-            <KPIBox
-              tier={3}
-              label="Discipline"
-              value={`${stats.disciplineScore.toFixed(0)}%`}
-              subtext="Plan Adherence"
-              color={stats.disciplineScore >= 70 ? 'emerald' : 'amber'}
-              tooltip="Percentage following trading plan"
-            />
-            <KPIBox
-              tier={3}
-              label="Current Streak"
-              value={`${stats.streakCount}`}
-              subtext={stats.streakType === 'WIN' ? 'Win Streak' : stats.streakType === 'LOSS' ? 'Loss Streak' : 'No Streak'}
-              color={stats.streakType === 'WIN' ? 'emerald' : stats.streakType === 'LOSS' ? 'rose' : undefined}
-              tooltip="Current consecutive wins/losses"
-            />
+
+            {/* Discipline — inline progress bar */}
+            <div
+              className="apple-glass p-4 sm:p-5 rounded-2xl shadow-lg hover:shadow-xl flex flex-col justify-between hover:scale-[1.02] transition-all duration-300 overflow-hidden cursor-default animate-in fade-in slide-in-from-bottom-2 border border-white/60"
+              style={{ boxShadow: '0 4px 16px rgba(0,0,0,0.08)' }}
+              title="Percentage of trades where you followed your plan"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-black/50">Discipline</h4>
+                <span className={`px-2 py-1 rounded-full text-[7px] sm:text-[8px] font-black tracking-widest ${
+                  stats.disciplineScore >= 70 ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600'
+                }`}>
+                  {stats.disciplineScore >= 70 ? 'ON PLAN' : 'DEVIATING'}
+                </span>
+              </div>
+              <div>
+                <p className={`text-xl sm:text-2xl font-black tracking-tight ${stats.disciplineScore >= 70 ? 'text-emerald-600' : 'text-amber-500'}`}>
+                  {stats.disciplineScore.toFixed(0)}%
+                </p>
+                <div className="mt-2 w-full h-1.5 bg-black/5 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-700 ${stats.disciplineScore >= 70 ? 'bg-emerald-500' : 'bg-amber-400'}`}
+                    style={{ width: `${Math.min(stats.disciplineScore, 100)}%` }}
+                  />
+                </div>
+                <p className="text-[8px] sm:text-[10px] font-bold text-black/30 uppercase tracking-widest mt-1">Plan Adherence</p>
+              </div>
+            </div>
+
+            {/* Streak — dot bars visualization */}
+            <div
+              className="apple-glass p-4 sm:p-5 rounded-2xl shadow-lg hover:shadow-xl flex flex-col justify-between hover:scale-[1.02] transition-all duration-300 overflow-hidden cursor-default animate-in fade-in slide-in-from-bottom-2 border border-white/60"
+              style={{ boxShadow: '0 4px 16px rgba(0,0,0,0.08)' }}
+              title="Current consecutive wins or losses"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-black/50">Streak</h4>
+                {stats.streakType && (
+                  <span className={`px-2 py-1 rounded-full text-[7px] sm:text-[8px] font-black tracking-widest ${
+                    stats.streakType === 'WIN' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-rose-500/10 text-rose-600'
+                  }`}>
+                    {stats.streakType === 'WIN' ? 'WIN 🔥' : 'LOSS'}
+                  </span>
+                )}
+              </div>
+              <div>
+                <div className="flex items-end gap-1 mb-1.5">
+                  <p className={`text-xl sm:text-2xl font-black tracking-tight ${
+                    stats.streakType === 'WIN' ? 'text-emerald-600' : stats.streakType === 'LOSS' ? 'text-rose-600' : 'text-black/30'
+                  }`}>
+                    {stats.streakCount}
+                  </p>
+                  {/* Growing dot bars — mirrors iOS */}
+                  <div className="flex items-end gap-0.5 pb-1 ml-1">
+                    {Array.from({ length: Math.min(stats.streakCount, 8) }).map((_, i) => (
+                      <div
+                        key={i}
+                        className={`w-1.5 rounded-sm ${stats.streakType === 'WIN' ? 'bg-emerald-500' : stats.streakType === 'LOSS' ? 'bg-rose-500' : 'bg-black/20'}`}
+                        style={{ height: `${6 + i * 2}px` }}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <p className="text-[8px] sm:text-[10px] font-bold text-black/30 uppercase tracking-widest">
+                  {stats.streakType === 'WIN' ? 'Win Streak' : stats.streakType === 'LOSS' ? 'Loss Streak' : 'No Streak'}
+                </p>
+              </div>
+            </div>
             <KPIBox
               tier={3}
               label="Current Balance"
@@ -619,31 +673,78 @@ const Dashboard: React.FC<DashboardProps> = ({ trades, activeAccount, accounts, 
           </div>
 
           <div className="apple-glass rounded-2xl p-6 shadow-lg border border-white/60 animate-in fade-in slide-in-from-bottom-3 duration-700">
-            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-black/50 mb-6">Equity Curve</h3>
-            <ResponsiveContainer width="100%" height={240}>
-              <AreaChart data={stats.equityData}>
-                <defs>
-                  <linearGradient id="colorPnL" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={stats.totalNetPnL >= 0 ? "#10b981" : "#ef4444"} stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor={stats.totalNetPnL >= 0 ? "#10b981" : "#ef4444"} stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#000" opacity={0.05} />
-                <XAxis dataKey="date" stroke="#000" opacity={0.2} tick={{ fontSize: 10, fontWeight: 'bold' }} />
-                <YAxis stroke="#000" opacity={0.2} tick={{ fontSize: 10, fontWeight: 'bold' }} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: 'rgba(255,255,255,0.95)',
-                    border: '1px solid rgba(0,0,0,0.1)',
-                    borderRadius: '12px',
-                    fontSize: '11px',
-                    fontWeight: 'bold',
-                    padding: '8px 12px'
-                  }}
-                />
-                <Area type="monotone" dataKey="value" stroke={stats.totalNetPnL >= 0 ? "#10b981" : "#ef4444"} strokeWidth={3} fill="url(#colorPnL)" />
-              </AreaChart>
-            </ResponsiveContainer>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-black/50">P&L Curve</h3>
+              <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${stats.totalNetPnL >= 0 ? 'bg-emerald-500/10 text-emerald-600' : 'bg-rose-500/10 text-rose-600'}`}>
+                {stats.totalNetPnL >= 0 ? '+' : ''}{stats.totalNetPnL.toLocaleString(undefined, { maximumFractionDigits: 2 })}{stats.unitLabel}
+              </span>
+            </div>
+            {(() => {
+              const vals = stats.equityData.map(d => d.value);
+              const minVal = Math.min(...vals);
+              const maxVal = Math.max(...vals);
+              const total = maxVal - minVal;
+              // Zero line position as % from top of chart (0% = top, 100% = bottom)
+              const zeroPct = total > 0 ? Math.round((maxVal / total) * 100) : 50;
+              return (
+                <ResponsiveContainer width="100%" height={240}>
+                  <AreaChart data={stats.equityData} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="pnlUp" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#10b981" stopOpacity={0.35}/>
+                        <stop offset={`${zeroPct}%`} stopColor="#10b981" stopOpacity={0.05}/>
+                        <stop offset={`${zeroPct}%`} stopColor="#ef4444" stopOpacity={0.05}/>
+                        <stop offset="100%" stopColor="#ef4444" stopOpacity={0.3}/>
+                      </linearGradient>
+                      <linearGradient id="pnlLine" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset={`${zeroPct}%`} stopColor="#10b981"/>
+                        <stop offset={`${zeroPct}%`} stopColor="#ef4444"/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#000" opacity={0.05} />
+                    <XAxis
+                      dataKey="date"
+                      stroke="#000"
+                      opacity={0.2}
+                      tick={{ fontSize: 10, fontWeight: 'bold' }}
+                      tickFormatter={(v) => v ? String(v).slice(5) : ''}
+                    />
+                    <YAxis
+                      stroke="#000"
+                      opacity={0.2}
+                      tick={{ fontSize: 10, fontWeight: 'bold' }}
+                      tickFormatter={(v) => `${v >= 0 ? '+' : ''}${Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 })}${stats.unitLabel}`}
+                      width={52}
+                    />
+                    <ReferenceLine y={0} stroke="#000" opacity={0.15} strokeDasharray="4 4" strokeWidth={1.5} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'rgba(255,255,255,0.95)',
+                        border: '1px solid rgba(0,0,0,0.1)',
+                        borderRadius: '12px',
+                        fontSize: '11px',
+                        fontWeight: 'bold',
+                        padding: '8px 12px'
+                      }}
+                      formatter={(val: number) => [
+                        `${val >= 0 ? '+' : ''}${Number(val).toLocaleString(undefined, { maximumFractionDigits: 2 })}${stats.unitLabel}`,
+                        'Cumulative P&L'
+                      ]}
+                      labelFormatter={(label) => label ? `Trade on ${label}` : 'Start'}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="value"
+                      stroke="url(#pnlLine)"
+                      strokeWidth={2.5}
+                      fill="url(#pnlUp)"
+                      dot={false}
+                      activeDot={{ r: 4, strokeWidth: 0 }}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              );
+            })()}
           </div>
 
           <div className="apple-glass rounded-2xl p-6 shadow-lg border border-white/60 animate-in fade-in slide-in-from-bottom-4 duration-700">
