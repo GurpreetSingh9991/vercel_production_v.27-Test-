@@ -1,9 +1,34 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ICONS } from '../constants';
-import { getSupabaseClient, getSession } from '../services/supabase';
+import { getSupabaseClient, getSession, updateProfileAvatarInDB, getProfileAvatarFromDB } from '../services/supabase';
 import { getTradeCountThisMonth, startStripeCheckout } from '../services/planService';
 import { LegalModal } from './Legal';
 type LegalDoc = 'privacy' | 'terms';
+
+// ── R2 avatar upload (same Cloudflare worker used for trade images) ────────────
+const WORKER_URL = (typeof import.meta !== 'undefined' ? (import.meta as any).env?.VITE_IMAGE_WORKER_URL : '') as string;
+
+async function uploadAvatarToR2(file: File, userId: string, token: string): Promise<string> {
+  if (!WORKER_URL) throw new Error('VITE_IMAGE_WORKER_URL not configured');
+  // Request presigned URL from worker — use userId as tradeId so it lands in avatars/ folder
+  const res = await fetch(`${WORKER_URL}/upload-url`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ tradeId: `avatars/${userId}`, fileName: `avatar_${Date.now()}.jpg`, contentType: file.type }),
+  });
+  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `Worker ${res.status}`); }
+  const { uploadUrl, publicUrl, useProxy } = await res.json();
+
+  if (useProxy) {
+    // Fallback proxy upload
+    const up = await fetch(`${WORKER_URL}/upload`, { method: 'PUT', headers: { 'Content-Type': file.type, Authorization: `Bearer ${token}` }, body: file });
+    if (!up.ok) throw new Error(`Proxy upload failed: ${up.status}`);
+  } else {
+    const up = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file });
+    if (!up.ok) throw new Error(`R2 upload failed: ${up.status}`);
+  }
+  return publicUrl;
+}
 
 interface ProfileSettingsProps {
   onClose: () => void;
@@ -19,7 +44,11 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ onClose, plan = 'free
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
 
-  // Trading Defaults (persisted to localStorage)
+  // Avatar upload
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
   const [defaultRiskPct, setDefaultRiskPct] = useState<number>(() => {
     try { return parseFloat(localStorage.getItem('tf_default_risk_pct') || '1.0'); } catch { return 1.0; }
   });
@@ -73,6 +102,11 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ onClose, plan = 'free
           email: session.user.email || '',
           phone: session.user.user_metadata?.phone_number || '',
           avatarUrl: session.user.user_metadata?.avatar_url || ''
+        });
+
+        // Sync avatar from profiles table (iOS writes here, so this picks up cross-platform changes)
+        getProfileAvatarFromDB().then(dbAvatar => {
+          if (dbAvatar) setFormData(prev => ({ ...prev, avatarUrl: dbAvatar }));
         });
         
         // Detect Google OAuth users — they have no password to change
@@ -352,14 +386,61 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ onClose, plan = 'free
             </div>
 
             <div className="flex flex-col items-center mb-6">
-              {/* Avatar display only — no upload (base64 would exceed Supabase metadata limits) */}
-              <div className="w-24 h-24 rounded-[2rem] bg-black/5 border border-black/10 overflow-hidden shadow-inner">
-                <img 
-                  src={formData.avatarUrl || `https://api.dicebear.com/7.x/notionists/svg?seed=${formData.fullName}`} 
-                  className="w-full h-full object-cover" 
-                  alt="Current Avatar" 
-                />
+              <div className="relative group cursor-pointer" onClick={() => document.getElementById('avatar-file-input')?.click()}>
+                <div className="w-24 h-24 rounded-[2rem] bg-black/5 border border-black/10 overflow-hidden shadow-inner">
+                  <img
+                    src={avatarPreview || formData.avatarUrl || `https://api.dicebear.com/7.x/notionists/svg?seed=${formData.fullName}`}
+                    className="w-full h-full object-cover"
+                    alt="Avatar"
+                  />
+                </div>
+                {/* Camera overlay */}
+                <div className="absolute inset-0 rounded-[2rem] bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  {avatarUploading
+                    ? <div className="w-6 h-6 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    : <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                  }
+                </div>
               </div>
+              <p className="text-[9px] font-bold text-black/30 uppercase tracking-widest mt-3">Tap to change photo</p>
+              {avatarError && <p className="text-[9px] font-bold text-rose-500 mt-1">{avatarError}</p>}
+              {/* Hidden file input */}
+              <input
+                id="avatar-file-input"
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  // Preview immediately
+                  const reader = new FileReader();
+                  reader.onload = (ev) => setAvatarPreview(ev.target?.result as string);
+                  reader.readAsDataURL(file);
+                  setAvatarFile(file);
+                  setAvatarError(null);
+                  // Upload right away
+                  setAvatarUploading(true);
+                  try {
+                    const s = await getSession();
+                    if (!s?.user) throw new Error('Not logged in');
+                    const token = (await getSupabaseClient()?.auth.getSession())?.data.session?.access_token || '';
+                    const publicUrl = await uploadAvatarToR2(file, s.user.id, token);
+                    // Write to BOTH profiles table (iOS syncs here) AND auth metadata (web session)
+                    await updateProfileAvatarInDB(publicUrl);
+                    setFormData(prev => ({ ...prev, avatarUrl: publicUrl }));
+                    setAvatarPreview(null);
+                    setAvatarFile(null);
+                  } catch (err: any) {
+                    setAvatarError(err.message || 'Upload failed');
+                    setAvatarPreview(null);
+                  } finally {
+                    setAvatarUploading(false);
+                  }
+                  // Reset input so same file can be re-selected
+                  e.target.value = '';
+                }}
+              />
             </div>
 
             <div className="grid grid-cols-1 gap-6">

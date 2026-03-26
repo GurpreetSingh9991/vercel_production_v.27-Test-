@@ -259,6 +259,7 @@ const getMobilePageTitle = (view: ViewType): string => {
     SETTINGS: 'Settings',
     PLAYBOOK: 'Playbook',
     GAMIFICATION: 'Achievements',
+    ACCOUNTS: 'Accounts',
   };
   return map[view] ?? 'TradeFlow';
 };
@@ -633,7 +634,7 @@ const App: React.FC = () => {
           </nav>
         </div>
         <div className="flex flex-col items-center gap-1 w-full mt-auto">
-          <SidebarNavBtn onClick={() => setIsAccountManagerOpen(true)} active={false} icon={<ICONS.Dollar className="w-5 h-5" />} label="Accounts" />
+          <SidebarNavBtn onClick={() => setActiveView('ACCOUNTS' as ViewType)} active={activeView === ('ACCOUNTS' as ViewType)} icon={<ICONS.Dollar className="w-5 h-5" />} label="Accounts" />
           <SidebarNavBtn onClick={() => setActiveView('SETTINGS')} active={activeView === 'SETTINGS'} icon={<ICONS.Settings className="w-5 h-5" />} label="Settings" />
           <div className="relative group/nav w-full flex justify-center">
             <button onClick={handleLogout} className="w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-200 text-rose-400/50 hover:text-rose-400 hover:bg-rose-400/10 hover:scale-105 active:scale-95"><ICONS.LogOut className="w-5 h-5" /></button>
@@ -676,7 +677,7 @@ const App: React.FC = () => {
           <div className="space-y-2">
             <div className="flex items-center justify-between px-1">
               <h3 className="text-[9px] font-black text-black/30 uppercase tracking-[0.25em]">Active Scope</h3>
-              <button onClick={() => setIsAccountManagerOpen(true)} className="text-[8px] font-black uppercase tracking-widest text-black/30 hover:text-black transition-colors">Switch</button>
+              <button onClick={() => setActiveView('ACCOUNTS' as ViewType)} className="text-[8px] font-black uppercase tracking-widest text-black/30 hover:text-black transition-colors">Switch</button>
             </div>
             <div className="p-4 rounded-2xl space-y-3" style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(255,255,255,0.9)', boxShadow: '0 2px 8px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,1)' }}>
               <div className="flex items-center justify-between">
@@ -759,7 +760,7 @@ const App: React.FC = () => {
 
               {/* Desktop title */}
               <h1 className="hidden lg:block text-2xl font-bold tracking-tight text-black">
-                {activeView === 'DASHBOARD' ? 'Performance' : activeView === 'TRADES_LOG' ? 'Library' : activeView === 'CALENDAR' ? 'Monthly Scope' : activeView === 'PSYCHOLOGY' ? 'Psychology' : activeView === 'AI_INTELLIGENCE' ? 'Intelligence' : 'Analytics'}
+                {getMobilePageTitle(activeView)}
               </h1>
 
               {/* New entry */}
@@ -855,7 +856,15 @@ const App: React.FC = () => {
                   }}
                 />
               )}
-              {activeView === 'SETTINGS' && (
+              {activeView === ('ACCOUNTS' as ViewType) && (
+                <AccountManager
+                  accounts={accounts}
+                  onSave={handleSaveAccount}
+                  activeAccountId={activeAccountId !== 'ALL' ? activeAccountId : (accounts[0]?.id || '')}
+                  onSetActive={(id) => setActiveAccountId(id)}
+                  plan={userPlan}
+                />
+              )}
                 <div className="px-6 sm:px-10 lg:px-0 pb-4">
                   <SyncSettings
                     config={{ sheetUrl: localStorage.getItem('tf_sheet_url') || '', lastSynced: null, autoSync: false }}
@@ -1071,7 +1080,8 @@ const App: React.FC = () => {
               <DrawerNavItem
                 icon={<ICONS.Dollar className="w-[17px] h-[17px]" />}
                 label="Accounts"
-                onClick={() => { haptic(6); setIsAccountManagerOpen(true); closeDrawer(); }}
+                isActive={(activeView as string) === 'ACCOUNTS'}
+                onClick={() => { haptic(6); setActiveView('ACCOUNTS' as ViewType); closeDrawer(); }}
               />
               <DrawerNavItem
                 icon={<ICONS.Settings className="w-[17px] h-[17px]" />}
@@ -1121,8 +1131,8 @@ const App: React.FC = () => {
               </div>
             </div>
             <div className="p-8 pt-6 bg-white space-y-3" style={{ paddingBottom: 'max(32px, env(safe-area-inset-bottom))' }}>
-              <button onClick={() => { setIsMobileProfileSheetOpen(false); setIsAccountManagerOpen(true); }} className="w-full flex items-center justify-between p-5 bg-black/5 rounded-2xl transition-all active:scale-[0.98]">
-                <div className="flex items-center gap-3"><ICONS.Dollar className="w-5 h-5 text-black/60" /><span className="text-sm font-bold text-black uppercase tracking-tight">Switch Account</span></div>
+              <button onClick={() => { setIsMobileProfileSheetOpen(false); setActiveView('ACCOUNTS' as ViewType); }} className="w-full flex items-center justify-between p-5 bg-black/5 rounded-2xl transition-all active:scale-[0.98]">
+                <div className="flex items-center gap-3"><ICONS.Dollar className="w-5 h-5 text-black/60" /><span className="text-sm font-bold text-black uppercase tracking-tight">Account Hub</span></div>
                 <ICONS.ChevronRight className="w-4 h-4 text-black/20" />
               </button>
               <button onClick={() => { setIsMobileProfileSheetOpen(false); setActiveView('SETTINGS'); }} className="w-full flex items-center justify-between p-5 bg-black/5 rounded-2xl transition-all active:scale-[0.98]">
@@ -1183,7 +1193,6 @@ const App: React.FC = () => {
         />
       )}
 
-      {isAccountManagerOpen && <AccountManager accounts={accounts} onSave={handleSaveAccount} onClose={() => setIsAccountManagerOpen(false)} plan={userPlan} />}
       {isProfileOpen && <ProfileSettings onClose={() => setIsProfileOpen(false)} plan={userPlan} />}
 
       {/* ══ Import Overlay ════════════════════════════════════════════════════ */}

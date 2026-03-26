@@ -421,3 +421,50 @@ export const loadPlaybooksFromSupabase = async (): Promise<any[] | null> => {
     return data.playbooks as any[];
   } catch (e) { return null; }
 };
+
+// ── Profile avatar sync (mirrors iOS SupabaseService.updateProfile) ──────────
+// iOS writes to profiles.avatar_url. Web must do the same so both platforms share one source of truth.
+export const updateProfileAvatarInDB = async (avatarUrl: string): Promise<boolean> => {
+  const client = getSupabaseClient();
+  if (!client) return false;
+  try {
+    const { data: { user } } = await client.auth.getUser();
+    if (!user) return false;
+    const { error: profileError } = await client
+      .from('profiles')
+      .upsert({ id: user.id, avatar_url: avatarUrl }, { onConflict: 'id' });
+    if (profileError) console.error('profiles avatar update failed:', profileError.message);
+    await client.auth.updateUser({ data: { avatar_url: avatarUrl } });
+    return !profileError;
+  } catch (e) { console.error('updateProfileAvatarInDB error:', e); return false; }
+};
+
+export const getProfileAvatarFromDB = async (): Promise<string | null> => {
+  const client = getSupabaseClient();
+  if (!client) return null;
+  try {
+    const { data: { user } } = await client.auth.getUser();
+    if (!user) return null;
+    const { data, error } = await client
+      .from('profiles').select('avatar_url').eq('id', user.id).single();
+    if (error || !data) return null;
+    return (data as any).avatar_url || null;
+  } catch { return null; }
+};
+
+// ── Account edit (update name, balance, color in Supabase) ───────────────────
+export const updateAccountInDB = async (account: Account): Promise<boolean> => {
+  const client = getSupabaseClient();
+  if (!client) return false;
+  try {
+    const { data: { user } } = await client.auth.getUser();
+    if (!user) return false;
+    const { error } = await client
+      .from('accounts')
+      .update({ name: account.name, initial_balance: account.initialBalance, color: account.color })
+      .eq('id', account.id)
+      .eq('user_id', user.id);
+    if (error) { console.error('account update failed:', error.message); return false; }
+    return true;
+  } catch (e) { console.error('updateAccountInDB error:', e); return false; }
+};

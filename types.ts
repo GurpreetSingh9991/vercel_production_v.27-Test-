@@ -111,4 +111,4 @@ export interface SyncConfig {
   autoSync: boolean;
 }
 
-export type ViewType = 'DASHBOARD' | 'TRADES_LOG' | 'CALENDAR' | 'ANALYTICS' | 'PSYCHOLOGY' | 'AI_INTELLIGENCE' | 'SETTINGS' | 'PLAYBOOK';
+export type ViewType = 'DASHBOARD' | 'TRADES_LOG' | 'CALENDAR' | 'ANALYTICS' | 'PSYCHOLOGY' | 'AI_INTELLIGENCE' | 'SETTINGS' | 'PLAYBOOK' | 'ACCOUNTS';
