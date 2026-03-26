@@ -865,6 +865,7 @@ const App: React.FC = () => {
                   plan={userPlan}
                 />
               )}
+              {activeView === 'SETTINGS' && (
                 <div className="px-6 sm:px-10 lg:px-0 pb-4">
                   <SyncSettings
                     config={{ sheetUrl: localStorage.getItem('tf_sheet_url') || '', lastSynced: null, autoSync: false }}
