@@ -417,51 +417,59 @@ const TradeForm: React.FC<TradeFormProps> = ({ onSave, onCancel, initialData, ac
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] flex flex-col items-center justify-end sm:justify-center p-0 sm:p-4 pt-safe pb-safe overflow-hidden">
-      <div className="bg-white/80 backdrop-blur-2xl w-full max-w-4xl rounded-t-[2.5rem] sm:rounded-[3rem] shadow-2xl border border-white/20 relative animate-in slide-in-from-bottom sm:zoom-in-95 overflow-hidden flex flex-col h-[92vh] sm:max-h-[85vh]">
+    <div className="fixed inset-0 bg-black/50 z-[300] flex flex-col items-center justify-end sm:justify-center p-0 sm:p-4 overflow-hidden">
+      <div className="bg-white w-full max-w-4xl rounded-t-[2rem] sm:rounded-[2rem] shadow-2xl border border-black/[0.06] relative flex flex-col h-[92vh] sm:max-h-[88vh]" style={{animation: 'modalSlideUp 0.25s cubic-bezier(0.32, 0.72, 0, 1)'}}>
         
-        {/* Dynamic Profit Pill */}
-        <div className={`absolute top-4 left-1/2 -translate-x-1/2 px-6 py-2 rounded-full shadow-2xl border flex items-center gap-4 transition-all duration-500 z-50 ${
-          formData.pnl! > 0 ? 'bg-emerald-500 border-emerald-400 text-white' : 
-          formData.pnl! < 0 ? 'bg-rose-500 border-rose-400 text-white' : 'bg-black border-slate-800 text-white'
-        }`}>
-          <div className="flex flex-col items-center">
-            <span className="text-[7px] font-black uppercase tracking-widest opacity-60 leading-none mb-0.5">Session Net</span>
-            <span className="text-xs sm:text-sm font-black font-mono leading-none">
-              {formData.pnl! >= 0 ? '+' : '-'}${Math.abs(formData.pnl!).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-            </span>
+        {/* Form Header — integrated pill + controls */}
+        <div className="flex-shrink-0 border-b border-black/[0.06] bg-white rounded-t-[2rem] sm:rounded-t-[2rem]">
+          {/* Top bar: title left, controls right */}
+          <div className="flex items-center justify-between px-6 sm:px-8 pt-5 pb-3">
+            <div>
+              <h2 className="text-base sm:text-lg font-black uppercase tracking-tight leading-none text-black">Journal Protocol</h2>
+              <p className="text-[9px] font-black text-black/30 uppercase tracking-[0.25em] mt-0.5">Session Data Serialization</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button 
+                type="button" 
+                onClick={toggleAdvanced}
+                className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all border ${isAdvanced ? 'bg-black text-white border-black' : 'bg-transparent text-black/40 border-black/10 hover:border-black/20 hover:text-black/70'}`}
+              >
+                {isAdvanced ? 'Advanced' : 'Simple'}
+              </button>
+              <button type="button" onClick={onCancel} className="w-8 h-8 flex items-center justify-center hover:bg-black/5 rounded-lg transition-colors text-black/30 hover:text-black/70">
+                <ICONS.Close className="w-4 h-4" />
+              </button>
+            </div>
           </div>
-          <div className="w-[1px] h-4 bg-white/20" />
-          <div className="flex flex-col items-center">
-            <span className="text-[7px] font-black uppercase tracking-widest opacity-60 leading-none mb-0.5">RR Multiplier</span>
-            <span className="text-[10px] font-black leading-none">{formData.rr || 0}R</span>
+          {/* Integrated profit pill */}
+          <div className="px-6 sm:px-8 pb-4">
+            <div className={`inline-flex items-center gap-4 px-5 py-2 rounded-xl border transition-all duration-300 ${
+              formData.pnl! > 0 ? 'bg-emerald-500 border-emerald-400 text-white' : 
+              formData.pnl! < 0 ? 'bg-rose-500 border-rose-400 text-white' : 'bg-black border-black text-white'
+            }`}>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[7px] font-black uppercase tracking-widest opacity-60 leading-none">Session Net</span>
+                <span className="text-[11px] font-black font-mono leading-none">
+                  {formData.pnl! >= 0 ? '+' : '-'}${Math.abs(formData.pnl!).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+              <div className="w-[1px] h-3 bg-white/25" />
+              <div className="flex items-center gap-1.5">
+                <span className="text-[7px] font-black uppercase tracking-widest opacity-60 leading-none">RR</span>
+                <span className="text-[11px] font-black leading-none">{formData.rr || 0}R</span>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Form Header */}
-        <div className="p-6 sm:p-8 pb-4 sm:pb-6 border-b border-black/[0.05] flex justify-between items-end bg-white/40 flex-shrink-0 pt-16">
-          <div>
-            <h2 className="text-lg sm:text-xl font-black uppercase tracking-tight leading-none text-black">Journal Protocol</h2>
-            <p className="text-[9px] sm:text-[10px] font-black text-slate-700 uppercase tracking-widest mt-1">Session Data Serialization</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <button 
-              type="button" 
-              onClick={toggleAdvanced}
-              className={`px-3 sm:px-4 py-2 rounded-full text-[8px] sm:text-[9px] font-black uppercase tracking-widest transition-all ${isAdvanced ? 'bg-emerald-500 text-white shadow-md' : 'bg-black/5 text-black/60 hover:bg-black/10'}`}
-            >
-              {isAdvanced ? 'Advanced' : 'Simple'}
-            </button>
-            <button type="button" onClick={onCancel} className="w-10 h-10 flex items-center justify-center hover:bg-black/5 rounded-full transition-colors text-black/40 hover:text-black"><ICONS.Close className="w-6 h-6" /></button>
-          </div>
-        </div>
+        <style>{`@keyframes modalSlideUp { from { opacity: 0; transform: translateY(16px) scale(0.99); } to { opacity: 1; transform: translateY(0) scale(1); } }`}</style>
 
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 sm:p-8 space-y-8 custom-scrollbar trade-form-scroll">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 sm:p-8 space-y-8 trade-form-scroll bg-[#f7f7f8]">
 
           {/* Inline validation errors */}
           {formErrors.length > 0 && (
-            <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 space-y-1.5 animate-in slide-in-from-top-2 duration-300">
-              <p className="text-[9px] font-black uppercase tracking-widest text-rose-600 mb-2">Fix before saving</p>
+            <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 space-y-1.5">
+              <p className="text-[9px] font-black uppercase tracking-widest text-rose-500 mb-2">Fix before saving</p>
               {formErrors.map((err, i) => (
                 <div key={i} className="flex items-center gap-2">
                   <div className="w-1 h-1 rounded-full bg-rose-400 shrink-0" />
@@ -471,19 +479,18 @@ const TradeForm: React.FC<TradeFormProps> = ({ onSave, onCancel, initialData, ac
             </div>
           )}
           
-          <div className="space-y-4">
-            <h3 className="text-[10px] font-black text-black/60 uppercase tracking-[0.3em] flex items-center gap-2">
-              <div className="w-1 h-3 bg-black/40 rounded-full" /> Session Context
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+          <div className="space-y-3">
+            <SectionLabel color="slate" label="Session Context" />
+            <div className="bg-white rounded-xl border border-black/[0.06] p-4 sm:p-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
               <div className="space-y-1.5">
-                <label className="block text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1">Account</label>
+                <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">Account</label>
                 <select name="accountId" value={formData.accountId} onChange={handleChange} className="w-full bg-white border border-slate-200 rounded-xl px-3 text-[11px] font-black outline-none h-[48px] focus:ring-2 focus:ring-black/5 text-black appearance-none">
                   {accounts.map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
                 </select>
               </div>
               <div className="space-y-1.5">
-                <label className="block text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1">Trade Date</label>
+                <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">Trade Date</label>
                 <input
                   type="date"
                   name="date"
@@ -495,7 +502,7 @@ const TradeForm: React.FC<TradeFormProps> = ({ onSave, onCancel, initialData, ac
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="block text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1">HTF Bias</label>
+                <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">HTF Bias</label>
                 <div className="flex gap-1 p-1 bg-slate-100/50 border border-slate-200 rounded-xl h-[48px]">
                   {BIASES.map(b => (
                     <button key={b} type="button" onClick={() => setFormData(p => ({...p, weeklyBias: b as Bias}))} className={`flex-1 rounded-lg text-[9px] font-black transition-all ${formData.weeklyBias === b ? 'bg-black text-white' : 'text-slate-500 hover:text-black'}`}>{b}</button>
@@ -503,7 +510,7 @@ const TradeForm: React.FC<TradeFormProps> = ({ onSave, onCancel, initialData, ac
                 </div>
               </div>
               <div className="space-y-1.5">
-                <label className="block text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1">Strategy Name</label>
+                <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">Strategy Name</label>
                 <input
                   type="text"
                   name="setupType"
@@ -521,7 +528,7 @@ const TradeForm: React.FC<TradeFormProps> = ({ onSave, onCancel, initialData, ac
               </div>
               {playbooks.length > 0 && (
                 <div className="space-y-1.5">
-                  <label className="block text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1">Playbook</label>
+                  <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">Playbook</label>
                   <PlaybookPicker
                     playbooks={playbooks}
                     setupType={formData.setupType}
@@ -531,16 +538,15 @@ const TradeForm: React.FC<TradeFormProps> = ({ onSave, onCancel, initialData, ac
                 </div>
               )}
             </div>
+            </div>
           </div>
 
-          <div className="space-y-4">
-            <h3 className="text-[10px] font-black text-black/60 uppercase tracking-[0.3em] flex items-center gap-2">
-              <div className="w-1 h-3 bg-black/40 rounded-full" /> Discipline Protocol
-            </h3>
-            <div className="bg-white/60 backdrop-blur-md border border-black/[0.05] p-6 rounded-[2rem] space-y-4">
+          <div className="space-y-3">
+            <SectionLabel color="slate" label="Discipline Protocol" />
+            <div className="bg-white border border-black/[0.06] p-5 sm:p-6 rounded-xl space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                   <label className="block text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1">Plan Compliance</label>
+                   <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">Plan Compliance</label>
                    <p className="text-[10px] font-bold text-black/80 italic">Did you execute according to your pre-defined rules?</p>
                 </div>
                 <div className="flex gap-1 p-1 bg-slate-50 border border-slate-200 rounded-xl h-[44px] w-48">
@@ -561,7 +567,7 @@ const TradeForm: React.FC<TradeFormProps> = ({ onSave, onCancel, initialData, ac
                 </div>
               </div>
               <div className="space-y-1.5">
-                <label className="block text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1">Pre-Trade Intent</label>
+                <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">Pre-Trade Intent</label>
                 <input 
                   type="text" 
                   name="plan" 
@@ -574,20 +580,17 @@ const TradeForm: React.FC<TradeFormProps> = ({ onSave, onCancel, initialData, ac
             </div>
           </div>
 
-          <div className="space-y-4">
-            <h3 className="text-[10px] font-black text-black/60 uppercase tracking-[0.3em] flex items-center gap-2">
-              <div className="w-1 h-3 bg-black/40 rounded-full" /> Market Logistics & Fill Data
-            </h3>
+          <div className="space-y-3">
+            <SectionLabel color="slate" label="Market Logistics & Fill Data" />
             
             {isAdvanced ? (
-              <div className="space-y-8 bg-slate-50/50 p-4 sm:p-6 rounded-[2rem] sm:rounded-[2.5rem] border border-black/5">
+              <div className="space-y-8 bg-white p-4 sm:p-6 rounded-xl border border-black/[0.06]">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-8">
                   <div className="space-y-1.5">
-                    <label className="block text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1">Symbol</label>
+                    <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">Symbol</label>
                     <input type="text" name="symbol" value={formData.symbol} onChange={handleChange} className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-black outline-none uppercase h-[48px] text-black" placeholder="BTCUSD" required />
-                    {/* Smart asset type badge */}
                     {formData.symbol && formData.symbol.length >= 2 && (
-                      <div className={`mt-1.5 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest w-fit animate-in fade-in duration-300 ${
+                      <div className={`mt-1.5 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest w-fit ${
                         formData.assetType === 'FOREX'   ? 'bg-blue-50 text-blue-600 border border-blue-200' :
                         formData.assetType === 'FUTURES' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
                         'bg-black/5 text-black/40 border border-black/5'
@@ -595,20 +598,9 @@ const TradeForm: React.FC<TradeFormProps> = ({ onSave, onCancel, initialData, ac
                         {formData.assetType === 'FOREX' ? '💱 Forex · Pip Mode' : formData.assetType === 'FUTURES' ? '📈 Futures · Tick Mode' : '📊 Stocks · Share Mode'}
                       </div>
                     )}
-                    {/* Smart asset type badge */}
-                    {formData.symbol && formData.symbol.length >= 2 && (
-                      <div className={`mt-1 flex items-center gap-1.5 px-2 py-1 rounded-lg text-[7px] font-black uppercase tracking-widest w-fit transition-all animate-in fade-in duration-300 ${
-                        formData.assetType === 'FOREX'   ? 'bg-blue-50 text-blue-600' :
-                        formData.assetType === 'FUTURES' ? 'bg-amber-50 text-amber-700' :
-                        'bg-black/5 text-black/40'
-                      }`}>
-                        <span>{formData.assetType === 'FOREX' ? '💱' : formData.assetType === 'FUTURES' ? '📈' : '📊'}</span>
-                        {formData.assetType === 'FOREX' ? 'Forex' : formData.assetType === 'FUTURES' ? 'Futures' : 'Stocks'} detected
-                      </div>
-                    )}
                   </div>
                   <div className="space-y-1.5">
-                    <label className="block text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1">Side</label>
+                    <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">Side</label>
                     <div className="flex gap-1 p-1 bg-white border border-slate-200 rounded-xl h-[48px]">
                       {SIDES.map(s => (
                         <button key={s} type="button" onClick={() => setFormData(p => ({...p, side: s as Side}))} className={`flex-1 rounded-lg text-[10px] font-black transition-all ${formData.side === s ? (s === 'LONG' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white') : 'text-slate-500'}`}>{s}</button>
@@ -631,13 +623,13 @@ const TradeForm: React.FC<TradeFormProps> = ({ onSave, onCancel, initialData, ac
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
+              <div className="bg-white rounded-xl border border-black/[0.06] p-4 sm:p-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-5">
                 <div className="space-y-1.5">
-                  <label className="block text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1">Symbol</label>
+                  <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">Symbol</label>
                   <input type="text" name="symbol" value={formData.symbol} onChange={handleChange} className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-black outline-none uppercase h-[48px] text-black" placeholder="BTCUSD" required />
-                    {/* Smart asset type badge */}
                     {formData.symbol && formData.symbol.length >= 2 && (
-                      <div className={`mt-1.5 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest w-fit animate-in fade-in duration-300 ${
+                      <div className={`mt-1.5 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest w-fit ${
                         formData.assetType === 'FOREX'   ? 'bg-blue-50 text-blue-600 border border-blue-200' :
                         formData.assetType === 'FUTURES' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
                         'bg-black/5 text-black/40 border border-black/5'
@@ -647,7 +639,7 @@ const TradeForm: React.FC<TradeFormProps> = ({ onSave, onCancel, initialData, ac
                     )}
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1">Side</label>
+                  <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">Side</label>
                   <div className="flex gap-1 p-1 bg-slate-100/50 border border-slate-200 rounded-xl h-[48px]">
                     {SIDES.map(s => (
                       <button key={s} type="button" onClick={() => setFormData(p => ({...p, side: s as Side}))} className={`flex-1 rounded-lg text-[10px] font-black transition-all ${formData.side === s ? (s === 'LONG' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white') : 'text-slate-500'}`}>{s}</button>
@@ -655,41 +647,40 @@ const TradeForm: React.FC<TradeFormProps> = ({ onSave, onCancel, initialData, ac
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1">
+                  <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">
                     {formData.assetType === 'FOREX' ? 'Lots' : formData.assetType === 'FUTURES' ? 'Contracts' : 'Shares'}
                   </label>
                   <input type="number" name="qty" value={formData.qty} onChange={handleChange} step="any" className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-black outline-none h-[48px] text-black" required />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1">Entry Price</label>
+                  <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">Entry Price</label>
                   <input type="number" name="entryPrice" value={formData.entryPrice} onChange={handleChange} step="any" className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-black outline-none h-[48px] text-black" required />
                 </div>
+              </div>
               </div>
             )}
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div 
-              className="flex items-center justify-between cursor-pointer group py-2"
+              className="flex items-center justify-between cursor-pointer group py-1"
               onClick={() => setShowPsychology(!showPsychology)}
             >
-              <h3 className="text-[10px] font-black text-violet-600 uppercase tracking-[0.3em] flex items-center gap-2">
-                <div className="w-1 h-3 bg-violet-600 rounded-full" /> Psychological Biometrics
-              </h3>
+              <SectionLabel color="violet" label="Psychological Biometrics" />
               <div className="flex items-center gap-2">
-                <span className="text-[8px] font-black text-slate-700 uppercase tracking-widest">
+                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">
                   {showPsychology ? 'Hide' : 'Monitor'}
                 </span>
-                <ICONS.ToggleRight className={`w-3.5 h-3.5 text-violet-600 transition-transform duration-500 ${showPsychology ? 'rotate-90' : ''}`} />
+                <ICONS.ToggleRight className={`w-3.5 h-3.5 text-violet-500 transition-transform duration-300 ${showPsychology ? 'rotate-90' : ''}`} />
               </div>
             </div>
 
             {showPsychology && (
-              <div className="space-y-4 animate-in slide-in-from-top-4 duration-500">
-                <div className="bg-violet-50/50 border border-violet-100 p-4 sm:p-6 rounded-[2rem] space-y-6">
+              <div className="space-y-4">
+                <div className="bg-white border border-violet-100 p-4 sm:p-6 rounded-xl space-y-6">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div className="space-y-3">
-                      <label className="block text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1 text-center sm:text-left">Pre-Trade Mood</label>
+                      <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1 text-center sm:text-left">Pre-Trade Mood</label>
                       <div className="flex justify-between gap-1 p-1 bg-white rounded-2xl border border-violet-100">
                         {MOOD_EMOJIS.map((emoji, i) => (
                           <button 
@@ -704,7 +695,7 @@ const TradeForm: React.FC<TradeFormProps> = ({ onSave, onCancel, initialData, ac
                       </div>
                     </div>
                     <div className="space-y-3">
-                      <label className="block text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1 text-center sm:text-left">Post-Trade Mood</label>
+                      <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1 text-center sm:text-left">Post-Trade Mood</label>
                       <div className="flex justify-between gap-1 p-1 bg-white rounded-2xl border border-violet-100">
                         {MOOD_EMOJIS.map((emoji, i) => (
                           <button 
@@ -721,7 +712,7 @@ const TradeForm: React.FC<TradeFormProps> = ({ onSave, onCancel, initialData, ac
                   </div>
 
                   <div className="space-y-3">
-                    <label className="block text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1">Internal States</label>
+                    <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">Internal States</label>
                     <div className="flex flex-wrap gap-1.5 sm:gap-2">
                       {EMOTIONAL_STATES.map(state => (
                         <button
@@ -744,11 +735,9 @@ const TradeForm: React.FC<TradeFormProps> = ({ onSave, onCancel, initialData, ac
             )}
           </div>
 
-          <div className="space-y-4">
-            <h3 className="text-[10px] font-black text-black/60 uppercase tracking-[0.3em] flex items-center gap-2">
-              <div className="w-1 h-3 bg-rose-500 rounded-full" /> Risk & Reward Engine
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-6 bg-slate-50/50 p-4 sm:p-6 rounded-[2rem] border border-slate-100">
+          <div className="space-y-3">
+            <SectionLabel color="rose" label="Risk & Reward Engine" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-5 bg-white p-4 sm:p-5 rounded-xl border border-black/[0.06]">
               <div className="space-y-1.5">
                 <label className="block text-[8px] font-black text-rose-500 uppercase tracking-widest ml-1">Stop Loss</label>
                 <input type="number" name="stopLossPrice" value={formData.stopLossPrice} onChange={handleChange} step="any" className="w-full bg-white border border-rose-100 rounded-xl p-3 text-sm font-black outline-none h-[48px] text-black" />
@@ -760,7 +749,7 @@ const TradeForm: React.FC<TradeFormProps> = ({ onSave, onCancel, initialData, ac
               {!isAdvanced && (
                 <>
                   <div className="space-y-1.5">
-                    <label className="block text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1">Exit Price</label>
+                    <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">Exit Price</label>
                     <input type="number" name="exitPrice" value={formData.exitPrice} onChange={handleChange} step="any" className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-black outline-none h-[48px] text-black" required />
                   </div>
                   <div className="space-y-1.5">
@@ -778,65 +767,62 @@ const TradeForm: React.FC<TradeFormProps> = ({ onSave, onCancel, initialData, ac
             </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div 
-              className="flex items-center justify-between cursor-pointer group py-2"
+              className="flex items-center justify-between cursor-pointer group py-1"
               onClick={() => setShowMistakes(!showMistakes)}
             >
-              <h3 className="text-[10px] font-black text-rose-600 uppercase tracking-[0.3em] flex items-center gap-2">
-                <div className="w-1 h-3 bg-rose-500 rounded-full" /> Psychological Friction
-              </h3>
+              <SectionLabel color="rose" label="Psychological Friction" />
               <div className="flex items-center gap-2">
-                <span className="text-[8px] font-black text-slate-700 uppercase tracking-widest">
+                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">
                   {showMistakes ? 'Hide' : 'Report'}
                 </span>
-                <ICONS.ToggleRight className={`w-3.5 h-3.5 text-rose-600 transition-transform duration-500 ${showMistakes ? 'rotate-90' : ''}`} />
+                <ICONS.ToggleRight className={`w-3.5 h-3.5 text-rose-500 transition-transform duration-300 ${showMistakes ? 'rotate-90' : ''}`} />
               </div>
             </div>
 
             {showMistakes && (
-              <div className="space-y-4 animate-in slide-in-from-top-4 duration-500">
-                <div className="bg-rose-50/50 border border-rose-100 p-4 sm:p-6 rounded-[2rem] space-y-4">
+              <div className="space-y-4">
+                <div className="bg-white border border-rose-100 p-4 sm:p-6 rounded-xl space-y-4">
                   {(formData.mistakes || []).map((mistake, idx) => (
-                    <div key={idx} className="bg-white p-4 sm:p-6 rounded-2xl border border-rose-100 shadow-sm relative group">
-                      <button type="button" onClick={() => removeMistake(idx)} className="absolute top-4 right-4 text-rose-300 hover:text-rose-500 p-2"><ICONS.Close className="w-4 h-4" /></button>
+                    <div key={idx} className="bg-rose-50/40 p-4 sm:p-5 rounded-xl border border-rose-100 relative">
+                      <button type="button" onClick={() => removeMistake(idx)} className="absolute top-4 right-4 text-rose-300 hover:text-rose-500 p-1"><ICONS.Close className="w-3.5 h-3.5" /></button>
                       <div className="space-y-4">
                         <div className="space-y-1.5">
-                          <label className="block text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1">Mistake Category</label>
-                          <select value={mistake.type} onChange={(e) => updateMistake(idx, 'type', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-[11px] font-black outline-none text-black">
+                          <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">Mistake Category</label>
+                          <select value={mistake.type} onChange={(e) => updateMistake(idx, 'type', e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl p-3 text-[11px] font-black outline-none text-black">
                             {COMMON_MISTAKES.map(m => <option key={m} value={m}>{m}</option>)}
                           </select>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div className="space-y-1.5">
-                            <label className="block text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1">Description</label>
-                            <textarea value={mistake.description} onChange={(e) => updateMistake(idx, 'description', e.target.value)} rows={2} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-[11px] outline-none resize-none font-semibold italic text-black" placeholder="The lapse..." />
+                            <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">Description</label>
+                            <textarea value={mistake.description} onChange={(e) => updateMistake(idx, 'description', e.target.value)} rows={2} className="w-full bg-white border border-slate-200 rounded-xl p-3 text-[11px] outline-none resize-none font-semibold italic text-black" placeholder="The lapse..." />
                           </div>
                           <div className="space-y-1.5">
                             <label className="block text-[8px] font-black text-emerald-600 uppercase tracking-widest ml-1">Lesson</label>
-                            <textarea value={mistake.lesson} onChange={(e) => updateMistake(idx, 'lesson', e.target.value)} rows={2} className="w-full bg-emerald-50/20 border border-emerald-100 rounded-xl p-3 text-[11px] outline-none resize-none font-semibold italic text-black" placeholder="Next time..." />
+                            <textarea value={mistake.lesson} onChange={(e) => updateMistake(idx, 'lesson', e.target.value)} rows={2} className="w-full bg-emerald-50/40 border border-emerald-100 rounded-xl p-3 text-[11px] outline-none resize-none font-semibold italic text-black" placeholder="Next time..." />
                           </div>
                         </div>
                       </div>
                     </div>
                   ))}
-                  <button type="button" onClick={addMistake} className="w-full py-5 border-2 border-dashed border-rose-200 rounded-2xl text-[9px] font-black text-rose-500 uppercase tracking-widest active:scale-95 transition-all">+ New Friction Entry</button>
+                  <button type="button" onClick={addMistake} className="w-full py-4 border-2 border-dashed border-rose-200 rounded-xl text-[9px] font-black text-rose-400 uppercase tracking-widest hover:border-rose-300 hover:text-rose-500 transition-all">+ New Friction Entry</button>
                 </div>
               </div>
             )}
           </div>
 
-          <div className="space-y-4">
-            <h3 className="text-[10px] font-black text-black/60 uppercase tracking-[0.3em] flex items-center gap-2">
-              <div className="w-1 h-3 bg-black/40 rounded-full" /> Analysis & Proof
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 sm:gap-6">
+          <div className="space-y-3">
+            <SectionLabel color="slate" label="Analysis & Proof" />
+            <div className="space-y-4 bg-white rounded-xl border border-black/[0.06] p-4 sm:p-5">
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 sm:gap-5">
               <div className="sm:col-span-8 space-y-1.5">
-                <label className="block text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1">Tags (Comma Separated)</label>
+                <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">Tags (Comma Separated)</label>
                 <input type="text" value={tagsInput} onChange={handleTagsChange} placeholder="Breakout, News, FOMO" className="w-full bg-white border border-slate-200 rounded-xl p-3 text-[11px] font-bold outline-none h-[48px] text-black" />
               </div>
               <div className="sm:col-span-4 space-y-1.5">
-                <label className="block text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1">Grade</label>
+                <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">Grade</label>
                 <div className="flex gap-1 p-1 bg-slate-100/50 border border-slate-200 rounded-xl h-[48px]">
                   {GRADES.map(g => (
                     <button key={g} type="button" onClick={() => setFormData(p => ({...p, resultGrade: g as Grade}))} className={`flex-1 rounded-lg text-[10px] font-black transition-all ${formData.resultGrade === g ? 'bg-black text-white shadow-md' : 'text-slate-500 hover:text-black'}`}>{g}</button>
@@ -844,11 +830,11 @@ const TradeForm: React.FC<TradeFormProps> = ({ onSave, onCancel, initialData, ac
                 </div>
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
               {(formData.assetType === 'FOREX' || formData.assetType === 'FUTURES') ? (
                 <>
                   <div className="space-y-1.5">
-                    <label className="block text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1">
+                    <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">
                       {formData.assetType === 'FOREX' ? 'Pip Value ($)' : 'Tick Value ($)'}
                       <span className="text-black/30 normal-case ml-1">per {formData.assetType === 'FOREX' ? 'pip' : 'tick'} per lot</span>
                     </label>
@@ -868,7 +854,7 @@ const TradeForm: React.FC<TradeFormProps> = ({ onSave, onCancel, initialData, ac
                     </p>
                   </div>
                   <div className="space-y-1.5">
-                    <label className="block text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1">
+                    <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">
                       {formData.assetType === 'FOREX' ? 'Pip Size' : 'Tick Size'}
                     </label>
                     <input
@@ -897,16 +883,16 @@ const TradeForm: React.FC<TradeFormProps> = ({ onSave, onCancel, initialData, ac
                 </>
               ) : (
                 <div className="space-y-1.5">
-                  <label className="block text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1">Asset Multiplier</label>
+                  <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">Asset Multiplier</label>
                   <input type="number" name="multiplier" value={formData.multiplier} onChange={handleChange} step="any" className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-black outline-none h-[48px] text-black" />
                 </div>
               )}
               <div className="space-y-1.5">
-                <label className="block text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1">Snapshot URL</label>
+                <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">Snapshot URL</label>
                 <input type="url" name="chartLink" value={formData.chartLink} onChange={handleChange} className="w-full bg-white border border-slate-200 rounded-xl p-3 text-[11px] font-mono outline-none h-[48px] text-black" placeholder="TradingView Link" />
               </div>
               <div className="space-y-1.5">
-                <label className="block text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1">Chart Screenshots</label>
+                <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">Chart Screenshots</label>
                 <TradeImageUpload
                   tradeId={formData.id as string}
                   existingImages={formData.images as string[] || []}
@@ -916,14 +902,15 @@ const TradeForm: React.FC<TradeFormProps> = ({ onSave, onCancel, initialData, ac
               </div>
             </div>
             <div className="space-y-1.5">
-              <label className="block text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1">Narrative</label>
-              <textarea name="narrative" value={formData.narrative} onChange={handleChange} rows={4} className="w-full bg-white border border-slate-200 rounded-2xl p-4 text-[13px] outline-none resize-none leading-relaxed italic font-semibold shadow-sm text-black" placeholder="The story of the trade..." />
+              <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">Narrative</label>
+              <textarea name="narrative" value={formData.narrative} onChange={handleChange} rows={4} className="w-full bg-slate-50/60 border border-slate-200 rounded-xl p-4 text-[13px] outline-none resize-none leading-relaxed italic font-semibold text-black" placeholder="The story of the trade..." />
+            </div>
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-4 pt-6 pb-12 sm:pb-6">
-            <button type="submit" className="w-full py-5 bg-black text-white rounded-full text-[11px] font-black uppercase tracking-[0.3em] shadow-2xl active:scale-95 transition-all order-1 sm:order-2 hover:brightness-110">Commit Entry</button>
-            <button type="button" onClick={onCancel} className="w-full py-5 text-[10px] font-black uppercase tracking-widest text-slate-700 hover:text-black transition-all order-2 sm:order-1">Abort</button>
+          <div className="flex flex-col sm:flex-row gap-3 pt-4 pb-10 sm:pb-4">
+            <button type="button" onClick={onCancel} className="w-full sm:w-auto sm:px-8 py-4 text-[10px] font-black uppercase tracking-widest text-black/40 hover:text-black/70 transition-all order-2 sm:order-1 border border-black/10 rounded-full hover:border-black/20">Abort</button>
+            <button type="submit" className="flex-1 py-4 bg-black text-white rounded-full text-[11px] font-black uppercase tracking-[0.25em] active:scale-[0.98] transition-all order-1 sm:order-2 hover:bg-black/80">Commit Entry</button>
           </div>
         </form>
       </div>
@@ -931,9 +918,24 @@ const TradeForm: React.FC<TradeFormProps> = ({ onSave, onCancel, initialData, ac
   );
 };
 
+const SectionLabel = ({ label, color }: { label: string; color: 'slate' | 'violet' | 'rose' }) => {
+  const colors = {
+    slate: 'bg-black/30 text-black/50',
+    violet: 'bg-violet-500 text-violet-600',
+    rose: 'bg-rose-400 text-rose-500',
+  };
+  const barColor = { slate: 'bg-black/25', violet: 'bg-violet-500', rose: 'bg-rose-400' };
+  return (
+    <h3 className={`text-[9px] font-black uppercase tracking-[0.3em] flex items-center gap-2 ${colors[color]}`}>
+      <div className={`w-[3px] h-3 ${barColor[color]} rounded-full`} />
+      {label}
+    </h3>
+  );
+};
+
 const StatSummary = ({ label, value }: { label: string; value: string }) => (
-  <div className="bg-white p-2.5 rounded-2xl border border-black/5 flex flex-col items-center justify-center shadow-sm">
-    <span className="text-[6px] font-black text-slate-700 uppercase tracking-widest block mb-1">{label}</span>
+  <div className="bg-slate-50 p-2.5 rounded-xl border border-black/[0.05] flex flex-col items-center justify-center">
+    <span className="text-[6px] font-black text-slate-500 uppercase tracking-widest block mb-1">{label}</span>
     <span className="text-[9px] font-black text-black truncate w-full text-center">{value}</span>
   </div>
 );
