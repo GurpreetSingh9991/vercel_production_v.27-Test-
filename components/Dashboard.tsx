@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import { Trade, Account, PerformanceUnit } from '../types';
 import { ICONS } from '../constants';
 import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid, BarChart, Bar, Cell, ReferenceLine } from 'recharts';
@@ -54,33 +54,45 @@ const EmptyState = () => (
   </div>
 );
 
-// Enhanced KPI Box with tiers and trends
-const KPIBox = React.memo(({ label, value, subtext, pill, color, tooltip, tier = 2, trend }: any) => {
-  const getTierStyle = () => {
-    switch (tier) {
-      case 1: return 'p-6 sm:p-8';
-      case 2: return 'p-5 sm:p-6';
-      case 3: return 'p-4 sm:p-5';
-      default: return 'p-5 sm:p-6';
-    }
-  };
+// Static lookup maps — defined outside component so they're never recreated
+const TIER_PADDING: Record<number, string> = {
+  1: 'p-6 sm:p-8',
+  2: 'p-5 sm:p-6',
+  3: 'p-4 sm:p-5',
+};
+const TIER_TEXT: Record<number, string> = {
+  1: 'text-3xl sm:text-4xl',
+  2: 'text-xl sm:text-2xl',
+  3: 'text-lg sm:text-xl',
+};
+const TIER_SHADOW: Record<number, string> = {
+  1: '0 8px 32px rgba(0,0,0,0.12)',
+  2: '0 4px 16px rgba(0,0,0,0.08)',
+  3: '0 4px 16px rgba(0,0,0,0.08)',
+};
 
-  const getValueSize = () => {
-    switch (tier) {
-      case 1: return 'text-3xl sm:text-4xl';
-      case 2: return 'text-xl sm:text-2xl';
-      case 3: return 'text-lg sm:text-xl';
-      default: return 'text-xl sm:text-2xl';
-    }
-  };
+interface KPIBoxProps {
+  label: string;
+  value: string | number;
+  subtext?: string;
+  pill?: string;
+  color?: string;
+  tooltip?: string;
+  tier?: 1 | 2 | 3;
+  trend?: string | null;
+}
+
+// Enhanced KPI Box with tiers and trends
+const KPIBox = React.memo(({ label, value, subtext, pill, color, tooltip, tier = 2, trend }: KPIBoxProps) => {
+  const tierPadding  = TIER_PADDING[tier]  ?? 'p-5 sm:p-6';
+  const tierTextSize = TIER_TEXT[tier]     ?? 'text-xl sm:text-2xl';
+  const tierShadow   = TIER_SHADOW[tier]   ?? '0 4px 16px rgba(0,0,0,0.08)';
 
   return (
     <div 
-      className={`apple-glass ${getTierStyle()} rounded-2xl shadow-lg hover:shadow-xl flex flex-col justify-between hover:scale-[1.02] transition-all duration-300 overflow-hidden cursor-default animate-in fade-in slide-in-from-bottom-2 border border-white/60`}
+      className={`apple-glass ${tierPadding} rounded-2xl shadow-lg hover:shadow-xl flex flex-col justify-between hover:scale-[1.02] transition-[transform,box-shadow] duration-300 overflow-hidden cursor-default animate-in fade-in slide-in-from-bottom-2 border border-white/60 transform-gpu`}
       title={tooltip}
-      style={{ 
-        boxShadow: tier === 1 ? '0 8px 32px rgba(0,0,0,0.12)' : '0 4px 16px rgba(0,0,0,0.08)'
-      }}
+      style={{ boxShadow: tierShadow }}
     >
       <div className="flex items-center justify-between mb-3 sm:mb-4">
         <h4 className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-black/50 truncate pr-1">{label}</h4>
@@ -95,7 +107,7 @@ const KPIBox = React.memo(({ label, value, subtext, pill, color, tooltip, tier =
       </div>
       <div className="overflow-hidden">
         <div className="flex items-baseline gap-2">
-          <p className={`${getValueSize()} font-black tracking-tight truncate ${
+          <p className={`${tierTextSize} font-black tracking-tight truncate ${
             color === 'rose' ? 'text-rose-600' : 
             color === 'emerald' ? 'text-emerald-600' : 
             color === 'amber' ? 'text-amber-500' : 
@@ -186,14 +198,14 @@ const Dashboard: React.FC<DashboardProps> = ({ trades, activeAccount, accounts, 
     return { type, label, qtyLabel, topSymbols, pnlLabel, isMixed };
   }, [filteredByDateTrades]);
 
-  const getUnitLabel = () => {
+  const unitLabel = useMemo(() => {
     if (displayUnit === 'PERCENT') return '%';
     if (displayUnit === 'R_MULTIPLE') return 'R';
     if (displayUnit === 'TICKS') return ' Tks';
     return '$';
-  };
+  }, [displayUnit]);
 
-  const formatValue = (pnl: number, trade?: Trade): number => {
+  const formatValue = useCallback((pnl: number, trade?: Trade): number => {
     if (displayUnit === 'PERCENT') {
       return startingEquity > 0 ? (pnl / startingEquity) * 100 : 0;
     } else if (displayUnit === 'R_MULTIPLE') {
@@ -206,7 +218,7 @@ const Dashboard: React.FC<DashboardProps> = ({ trades, activeAccount, accounts, 
       return (Math.abs(trade.exitPrice - trade.entryPrice)) * (trade.multiplier || 1);
     }
     return pnl;
-  };
+  }, [displayUnit, startingEquity]);
 
   const stats = useMemo(() => {
     const currentTrades = filteredByDateTrades;
@@ -366,10 +378,10 @@ const Dashboard: React.FC<DashboardProps> = ({ trades, activeAccount, accounts, 
       maxDrawdownPct,
       maxDrawdownRaw: maxDrawdown,
       disciplineScore,
-      unitLabel: getUnitLabel(),
+      unitLabel,
       activeAlerts: activeAlerts.sort((a, b) => b.priority - a.priority).slice(0, 3)
     };
-  }, [filteredByDateTrades, activeAccount, accounts, displayUnit, startingEquity]);
+  }, [filteredByDateTrades, activeAccount, accounts, displayUnit, startingEquity, unitLabel, formatValue]);
 
   // ✅ FIX: Memoize renderTradeDetail to prevent recreation on every render
   const renderTradeDetail = React.useCallback((trade: Trade) => {
@@ -392,7 +404,7 @@ const Dashboard: React.FC<DashboardProps> = ({ trades, activeAccount, accounts, 
     }
 
     return (
-      <div key={trade.id} className="bg-white/50 border border-white/80 rounded-2xl p-4 sm:p-5 mb-3 hover:shadow-lg hover:scale-[1.01] transition-all duration-200 animate-in fade-in slide-in-from-bottom-1">
+      <div key={trade.id} className="bg-white/50 border border-white/80 rounded-2xl p-4 sm:p-5 mb-3 hover:shadow-lg hover:scale-[1.01] transition-[transform,box-shadow] duration-200 animate-in fade-in slide-in-from-bottom-1 transform-gpu">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3 sm:gap-4">
             <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center font-black text-[10px] shadow-inner ${trade.side === 'LONG' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-rose-500/10 text-rose-600'}`}>
@@ -428,15 +440,8 @@ const Dashboard: React.FC<DashboardProps> = ({ trades, activeAccount, accounts, 
     return <LoadingSkeleton />;
   }
 
-  const getPnLTrend = () => {
-    if (!stats) return null;
-    return stats.totalNetPnL > 0 ? 'up' : stats.totalNetPnL < 0 ? 'down' : 'neutral';
-  };
-
-  const getWinRateTrend = () => {
-    if (!stats) return null;
-    return stats.winRate > 50 ? 'up' : stats.winRate < 50 ? 'down' : 'neutral';
-  };
+  const pnlTrend     = useMemo(() => !stats ? null : stats.totalNetPnL > 0 ? 'up' : stats.totalNetPnL < 0 ? 'down' : 'neutral', [stats?.totalNetPnL]);
+  const winRateTrend = useMemo(() => !stats ? null : stats.winRate > 50 ? 'up' : stats.winRate < 50 ? 'down' : 'neutral', [stats?.winRate]);
 
   return (
     <div className="space-y-8 sm:space-y-12 pb-12">
@@ -455,7 +460,7 @@ const Dashboard: React.FC<DashboardProps> = ({ trades, activeAccount, accounts, 
             <button
               key={range}
               onClick={() => setDateRange(range)}
-              className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-[color,background-color,box-shadow] ${
                 dateRange === range
                   ? 'bg-black text-white shadow-lg'
                   : 'text-black/40 hover:text-black hover:bg-white/50'
@@ -472,7 +477,7 @@ const Dashboard: React.FC<DashboardProps> = ({ trades, activeAccount, accounts, 
           {visibleAlerts.map(alert => (
             <div
               key={alert.id}
-              className={`rounded-2xl p-4 sm:p-5 flex items-start gap-4 border-2 shadow-lg transition-all hover:scale-[1.01] ${
+              className={`rounded-2xl p-4 sm:p-5 flex items-start gap-4 border-2 shadow-lg transition-[transform,box-shadow] hover:scale-[1.01] transform-gpu ${
                 alert.type === 'danger' ? 'bg-rose-50 border-rose-200' :
                 alert.type === 'warning' ? 'bg-amber-50 border-amber-200' :
                 alert.type === 'success' ? 'bg-emerald-50 border-emerald-200' :
@@ -513,7 +518,7 @@ const Dashboard: React.FC<DashboardProps> = ({ trades, activeAccount, accounts, 
               value={`${stats.totalNetPnL >= 0 ? '+' : ''}${stats.totalNetPnL.toLocaleString(undefined, { maximumFractionDigits: 2 })}${stats.unitLabel}`}
               subtext={stats.totalNetPnL >= 0 ? 'Profitable Period' : 'Drawdown Period'}
               color={stats.totalNetPnL >= 0 ? 'emerald' : 'rose'}
-              trend={getPnLTrend()}
+              trend={pnlTrend}
               tooltip="Total realized profit/loss"
             />
             <KPIBox
@@ -522,7 +527,7 @@ const Dashboard: React.FC<DashboardProps> = ({ trades, activeAccount, accounts, 
               value={`${stats.winRate.toFixed(1)}%`}
               subtext={`${stats.wins} Wins · ${stats.losses} Losses`}
               color={stats.winRate >= 50 ? 'emerald' : stats.winRate >= 40 ? 'amber' : 'rose'}
-              trend={getWinRateTrend()}
+              trend={winRateTrend}
               pill={stats.winRate >= 50 ? 'GOOD' : 'RISK'}
               tooltip="Percentage of winning trades"
             />
@@ -590,7 +595,7 @@ const Dashboard: React.FC<DashboardProps> = ({ trades, activeAccount, accounts, 
 
             {/* Discipline — inline progress bar */}
             <div
-              className="apple-glass p-4 sm:p-5 rounded-2xl shadow-lg hover:shadow-xl flex flex-col justify-between hover:scale-[1.02] transition-all duration-300 overflow-hidden cursor-default animate-in fade-in slide-in-from-bottom-2 border border-white/60"
+              className="apple-glass p-4 sm:p-5 rounded-2xl shadow-lg hover:shadow-xl flex flex-col justify-between hover:scale-[1.02] transition-[transform,box-shadow] duration-300 overflow-hidden cursor-default animate-in fade-in slide-in-from-bottom-2 border border-white/60 transform-gpu"
               style={{ boxShadow: '0 4px 16px rgba(0,0,0,0.08)' }}
               title="Percentage of trades where you followed your plan"
             >
@@ -608,7 +613,7 @@ const Dashboard: React.FC<DashboardProps> = ({ trades, activeAccount, accounts, 
                 </p>
                 <div className="mt-2 w-full h-1.5 bg-black/5 rounded-full overflow-hidden">
                   <div
-                    className={`h-full rounded-full transition-all duration-700 ${stats.disciplineScore >= 70 ? 'bg-emerald-500' : 'bg-amber-400'}`}
+                    className={`h-full rounded-full transition-[width] duration-700 ${stats.disciplineScore >= 70 ? 'bg-emerald-500' : 'bg-amber-400'}`}
                     style={{ width: `${Math.min(stats.disciplineScore, 100)}%` }}
                   />
                 </div>
@@ -618,7 +623,7 @@ const Dashboard: React.FC<DashboardProps> = ({ trades, activeAccount, accounts, 
 
             {/* Streak — dot bars visualization */}
             <div
-              className="apple-glass p-4 sm:p-5 rounded-2xl shadow-lg hover:shadow-xl flex flex-col justify-between hover:scale-[1.02] transition-all duration-300 overflow-hidden cursor-default animate-in fade-in slide-in-from-bottom-2 border border-white/60"
+              className="apple-glass p-4 sm:p-5 rounded-2xl shadow-lg hover:shadow-xl flex flex-col justify-between hover:scale-[1.02] transition-[transform,box-shadow] duration-300 overflow-hidden cursor-default animate-in fade-in slide-in-from-bottom-2 border border-white/60 transform-gpu"
               style={{ boxShadow: '0 4px 16px rgba(0,0,0,0.08)' }}
               title="Current consecutive wins or losses"
             >
