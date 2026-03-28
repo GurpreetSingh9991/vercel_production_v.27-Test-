@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Trade, ViewType, PerformanceUnit, Account, Playbook } from './types';
 import { ICONS, TRADER_QUOTES, COLORS } from './constants';
 import { loadTrades, saveTrades, exportToCSV } from './services/storage';
@@ -237,11 +237,11 @@ const OnboardingScreen: React.FC<{ userName: string; userEmail: string; session:
 // ─── Desktop Sidebar Nav Button ───────────────────────────────────────────────
 const SidebarNavBtn: React.FC<{ onClick: () => void; active: boolean; icon: React.ReactNode; label: string }> = ({ onClick, active, icon, label }) => (
   <div className="relative group/nav w-full flex justify-center">
-    <button onClick={onClick} className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-200 relative ${active ? 'bg-white text-[#111111] shadow-xl scale-105' : 'text-white/40 hover:text-white hover:bg-white/10 hover:scale-105 active:scale-95'}`}>
+    <button onClick={onClick} className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-[transform,color,background-color,box-shadow] duration-200 relative transform-gpu ${active ? 'bg-white text-[#111111] shadow-xl scale-105' : 'text-white/40 hover:text-white hover:bg-white/10 hover:scale-105 active:scale-95'}`}>
       {icon}
       {active && <span className="absolute -right-1 top-1/2 -translate-y-1/2 w-1 h-5 bg-white rounded-full" />}
     </button>
-    <div className="pointer-events-none absolute left-[calc(100%+12px)] top-1/2 -translate-y-1/2 opacity-0 group-hover/nav:opacity-100 transition-all duration-200 translate-x-[-4px] group-hover/nav:translate-x-0 z-50">
+    <div className="pointer-events-none absolute left-[calc(100%+12px)] top-1/2 -translate-y-1/2 opacity-0 group-hover/nav:opacity-100 transition-[opacity,transform] duration-200 translate-x-[-4px] group-hover/nav:translate-x-0 z-50">
       <div className="bg-[#111] text-white text-[9px] font-black uppercase tracking-[0.15em] px-3 py-2 rounded-xl whitespace-nowrap shadow-xl">{label}<div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-[#111]" /></div>
     </div>
   </div>
@@ -509,12 +509,12 @@ const App: React.FC = () => {
     setSession(null); setUserPlan('free'); setTrades([]); setAccounts([]); setActiveAccountId('ALL'); setActiveView('DASHBOARD');
   };
 
-  const handleDeleteTrade = async (id: string) => {
+  const handleDeleteTrade = useCallback(async (id: string) => {
     const updated = trades.filter(t => t.id !== id);
     setTrades(updated);
     requestAnimationFrame(() => saveTrades(updated));
     deleteSupabaseTrade(id).catch(console.error);
-  };
+  }, [trades]);
 
   const handleSaveAccount = async (newAccounts: Account[]) => {
     if (activeAccountId !== 'ALL' && !newAccounts.some(a => a.id === activeAccountId)) setActiveAccountId('ALL');
@@ -567,6 +567,12 @@ const App: React.FC = () => {
     finally { setIsImporting(false); }
   };
 
+  const openTradeForm = useCallback((trade?: Trade | null, date?: string) => {
+    setEditingTrade(trade || null);
+    setPrefillDate(date);
+    setIsFormOpen(true);
+  }, []);
+
   if (isAuthLoading) return <LoadingBar message="Initializing Journal..." />;
   // ── PASSWORD RECOVERY INTERCEPT ────────────────────────────────────────────
   // When user clicks the reset-password email link, Supabase fires PASSWORD_RECOVERY
@@ -603,12 +609,6 @@ const App: React.FC = () => {
   }
 
   if (showOnboarding) return <OnboardingScreen userName={userName} userEmail={userEmail} session={session} onComplete={handleSaveAccount} />;
-
-  const openTradeForm = (trade?: Trade | null, date?: string) => {
-    setEditingTrade(trade || null);
-    setPrefillDate(date);
-    setIsFormOpen(true);
-  };
 
   return (
     <ErrorBoundary>
@@ -805,15 +805,15 @@ const App: React.FC = () => {
             <div key={activeView} className="animate-in fade-in slide-in-from-bottom-2 duration-300">
               {activeView === 'DASHBOARD' && (
                 <>
-                  <Dashboard displayUnit={displayUnit} setDisplayUnit={setDisplayUnit} trades={filteredTrades} activeAccount={activeAccount} accounts={accounts} onTradeEdit={(t) => openTradeForm(t)} onTradeDelete={handleDeleteTrade} />
+                  <Dashboard displayUnit={displayUnit} setDisplayUnit={setDisplayUnit} trades={filteredTrades} activeAccount={activeAccount} accounts={accounts} onTradeEdit={openTradeForm} onTradeDelete={handleDeleteTrade} />
                   {userPlan === 'pro' && <div className="mt-8 pt-8 border-t border-black/5 text-center flex flex-col items-center gap-2 opacity-40"><ICONS.Zap className="w-4 h-4 text-emerald-600" /><p className="text-[9px] font-black uppercase tracking-[0.3em]">Pro Access Active • Infinite Ops</p></div>}
                 </>
               )}
-              {activeView === 'TRADES_LOG' && <TradeLog displayUnit={displayUnit} trades={filteredTrades} onEdit={(t) => openTradeForm(t)} onDelete={handleDeleteTrade} startingEquity={startingEquity} />}
+              {activeView === 'TRADES_LOG' && <TradeLog displayUnit={displayUnit} trades={filteredTrades} onEdit={openTradeForm} onDelete={handleDeleteTrade} startingEquity={startingEquity} />}
               {activeView === 'CALENDAR' && (
                 <Calendar
                   trades={filteredTrades} displayUnit={displayUnit} startingEquity={startingEquity}
-                  onTradeEdit={(t) => openTradeForm(t)} onTradeDelete={handleDeleteTrade}
+                  onTradeEdit={openTradeForm} onTradeDelete={handleDeleteTrade}
                   onAddTradeForDate={(date: string) => openTradeForm(null, date)}
                 />
               )}
