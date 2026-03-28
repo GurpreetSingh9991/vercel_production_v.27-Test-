@@ -481,50 +481,51 @@ const TradeForm: React.FC<TradeFormProps> = ({ onSave, onCancel, initialData, ac
           
           <div className="space-y-3">
             <SectionLabel color="slate" label="Session Context" />
-            <div className="bg-white rounded-xl border border-black/[0.06] p-4 sm:p-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-              <div className="space-y-1.5">
-                <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">Account</label>
-                <select name="accountId" value={formData.accountId} onChange={handleChange} className="w-full bg-white border border-slate-200 rounded-xl px-3 text-[11px] font-black outline-none h-[48px] focus:ring-2 focus:ring-black/5 text-black appearance-none">
-                  {accounts.map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">Trade Date</label>
-                <input
-                  type="date"
-                  name="date"
-                  value={formData.date || ''}
-                  max={new Date().toISOString().split('T')[0]}
-                  onChange={handleChange}
-                  className="w-full bg-white border border-slate-200 rounded-xl px-3 text-[11px] font-black outline-none h-[48px] focus:ring-2 focus:ring-black/5 text-black"
-                  style={{ WebkitAppearance: 'none', MozAppearance: 'textfield' } as React.CSSProperties}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">HTF Bias</label>
-                <div className="flex gap-1 p-1 bg-slate-100/50 border border-slate-200 rounded-xl h-[48px]">
-                  {BIASES.map(b => (
-                    <button key={b} type="button" onClick={() => setFormData(p => ({...p, weeklyBias: b as Bias}))} className={`flex-1 rounded-lg text-[9px] font-black transition-all ${formData.weeklyBias === b ? 'bg-black text-white' : 'text-slate-500 hover:text-black'}`}>{b}</button>
-                  ))}
+            <div className="bg-white rounded-xl border border-black/[0.06] p-4 sm:p-6 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+                <div className="space-y-1.5">
+                  <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">Account</label>
+                  <select name="accountId" value={formData.accountId} onChange={handleChange} className="w-full bg-white border border-slate-200 rounded-xl px-3 text-[11px] font-black outline-none h-[48px] focus:ring-2 focus:ring-black/5 text-black appearance-none">
+                    {accounts.map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
+                  </select>
                 </div>
-              </div>
-              <div className="space-y-1.5">
-                <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">Strategy Name</label>
-                <input
-                  type="text"
-                  name="setupType"
-                  value={formData.setupType}
-                  onChange={handleChange}
-                  list="playbook-suggestions"
-                  className="w-full bg-white border border-slate-200 rounded-xl px-3 text-[12px] font-semibold outline-none h-[48px] focus:ring-2 focus:ring-black/5 text-black placeholder:text-slate-300"
-                  placeholder="e.g. VWAP Reclaim, ORB, Pullback..."
-                />
-                {playbooks.length > 0 && (
-                  <datalist id="playbook-suggestions">
-                    {playbooks.map(pb => <option key={pb.id} value={pb.name} />)}
-                  </datalist>
-                )}
+                <div className="space-y-1.5">
+                  <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">Trade Date</label>
+                  <input
+                    type="date"
+                    name="date"
+                    value={formData.date || ''}
+                    max={new Date().toISOString().split('T')[0]}
+                    onChange={handleChange}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 text-[11px] font-black outline-none h-[48px] focus:ring-2 focus:ring-black/5 text-black"
+                    style={{ WebkitAppearance: 'none', MozAppearance: 'textfield' } as React.CSSProperties}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">HTF Bias</label>
+                  <div className="flex gap-1 p-1 bg-slate-100/50 border border-slate-200 rounded-xl h-[48px]">
+                    {BIASES.map(b => (
+                      <button key={b} type="button" onClick={() => setFormData(p => ({...p, weeklyBias: b as Bias}))} className={`flex-1 rounded-lg text-[9px] font-black transition-all ${formData.weeklyBias === b ? 'bg-black text-white' : 'text-slate-500 hover:text-black'}`}>{b}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">Strategy Name</label>
+                  <input
+                    type="text"
+                    name="setupType"
+                    value={formData.setupType}
+                    onChange={handleChange}
+                    list="playbook-suggestions"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 text-[12px] font-semibold outline-none h-[48px] focus:ring-2 focus:ring-black/5 text-black placeholder:text-slate-300"
+                    placeholder="e.g. VWAP Reclaim, ORB, Pullback..."
+                  />
+                  {playbooks.length > 0 && (
+                    <datalist id="playbook-suggestions">
+                      {playbooks.map(pb => <option key={pb.id} value={pb.name} />)}
+                    </datalist>
+                  )}
+                </div>
               </div>
               {playbooks.length > 0 && (
                 <div className="space-y-1.5">
@@ -537,7 +538,6 @@ const TradeForm: React.FC<TradeFormProps> = ({ onSave, onCancel, initialData, ac
                   />
                 </div>
               )}
-            </div>
             </div>
           </div>
 
@@ -919,15 +919,15 @@ const TradeForm: React.FC<TradeFormProps> = ({ onSave, onCancel, initialData, ac
 };
 
 const SectionLabel = ({ label, color }: { label: string; color: 'slate' | 'violet' | 'rose' }) => {
-  const colors = {
-    slate: 'bg-black/30 text-black/50',
-    violet: 'bg-violet-500 text-violet-600',
-    rose: 'bg-rose-400 text-rose-500',
+  const textColors = {
+    slate: 'text-black/60',
+    violet: 'text-violet-600',
+    rose: 'text-rose-500',
   };
-  const barColor = { slate: 'bg-black/25', violet: 'bg-violet-500', rose: 'bg-rose-400' };
+  const barColor = { slate: 'bg-black/30', violet: 'bg-violet-500', rose: 'bg-rose-400' };
   return (
-    <h3 className={`text-[9px] font-black uppercase tracking-[0.3em] flex items-center gap-2 ${colors[color]}`}>
-      <div className={`w-[3px] h-3 ${barColor[color]} rounded-full`} />
+    <h3 className={`text-[9px] font-black uppercase tracking-[0.3em] flex items-center gap-2 ${textColors[color]}`}>
+      <div className={`w-[3px] h-3 ${barColor[color]} rounded-full flex-shrink-0`} />
       {label}
     </h3>
   );
